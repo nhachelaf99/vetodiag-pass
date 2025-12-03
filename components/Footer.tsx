@@ -1,0 +1,175 @@
+import Link from "next/link";
+
+export default function Footer() {
+  return (
+    <footer className="bg-background-dark border-t border-gray-800/50">
+      <div className="container mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div>
+            <Link href="/" className="flex items-center space-x-3 mb-4">
+              <div className="bg-primary p-2 rounded-lg">
+                <svg
+                  className="w-6 h-6 text-white"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                  />
+                </svg>
+              </div>
+              <span className="text-xl font-bold text-white">VetoDiag</span>
+            </Link>
+            <p className="text-gray-400">
+              Advanced veterinary software for optimized pet care.
+            </p>
+          </div>
+          <div>
+            <h4 className="font-bold text-white mb-4">Product</h4>
+            <ul className="space-y-3">
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Features
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Pricing
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Security
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold text-white mb-4">Support</h4>
+            <ul className="space-y-3">
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Help Center
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Contact Us
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  FAQ
+                </Link>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-bold text-white mb-4">Company</h4>
+            <ul className="space-y-3">
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Blog
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="#"
+                  className="text-gray-400 hover:text-primary transition-colors"
+                >
+                  Careers
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div className="mt-12 pt-8 border-t border-gray-800/50 flex flex-col md:flex-row justify-between items-center">
+          <p className="text-gray-500 text-sm">© 2025 VetoDiag. All rights reserved.</p>
+          <div className="flex space-x-4 mt-4 md:mt-0">
+            <Link
+              href="#"
+              className="text-gray-500 hover:text-primary transition-colors"
+            >
+              <svg
+                aria-hidden="true"
+                className="h-6 w-6"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  clipRule="evenodd"
+                  d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z"
+                  fillRule="evenodd"
+                />
+              </svg>
+            </Link>
+            <Link
+              href="#"
+              className="text-gray-500 hover:text-primary transition-colors"
+            >
+              <svg
+                aria-hidden="true"
+                className="h-6 w-6"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path d="M8.29 20.251c7.547 0 11.675-6.253 11.675-11.675 0-.178 0-.355-.012-.53A8.348 8.348 0 0022 5.92a8.19 8.19 0 01-2.357.646 4.118 4.118 0 001.804-2.27 8.224 8.224 0 01-2.605.996 4.107 4.107 0 00-6.993 3.743 11.65 11.65 0 01-8.457-4.287 4.106 4.106 0 001.27 5.477A4.072 4.072 0 012.8 9.71v.052a4.105 4.105 0 003.292 4.022 4.095 4.095 0 01-1.853.07 4.108 4.108 0 003.834 2.85A8.233 8.233 0 012 18.407a11.616 11.616 0 006.29 1.84" />
+              </svg>
+            </Link>
+            <Link
+              href="#"
+              className="text-gray-500 hover:text-primary transition-colors"
+            >
+              <svg
+                aria-hidden="true"
+                className="h-6 w-6"
+                fill="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  clipRule="evenodd"
+                  d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.024.06 1.378.06 3.808s-.012 2.784-.06 3.808c-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.024.048-1.378.06-3.808.06s-2.784-.013-3.808-.06c-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.048-1.024-.06-1.378-.06-3.808s.012-2.784.06-3.808c.049-1.064.218 1.791.465 2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 016.345 2.525c.636-.247 1.363-.416 2.427-.465C9.795 2.013 10.149 2 12.315 2zm-1.163 1.943c-2.4 0-2.724.01-3.667.058-1.002.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.855-.344 1.857-.048.943-.058 1.267-.058 3.667s.01 2.724.058 3.667c.045 1.002.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.855.3 1.857.344.943.048 1.267.058 3.667.058s2.724-.01 3.667-.058c1.002-.045 1.504-.207 1.857-.344.467-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.855-.344-1.857.048-.943.058-1.267.058-3.667s-.01-2.724-.058-3.667c-.045-1.002-.207-1.504-.344-1.857a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.855-.3-1.857-.344-.943-.048-1.267-.058-3.667-.058zM12 6.865a5.135 5.135 0 100 10.27 5.135 5.135 0 000-10.27zm0 1.802a3.333 3.333 0 110 6.666 3.333 3.333 0 010-6.666zm5.338-3.205a1.2 1.2 0 100 2.4 1.2 1.2 0 000-2.4z"
+                  fillRule="evenodd"
+                />
+              </svg>
+            </Link>
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
