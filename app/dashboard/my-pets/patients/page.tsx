@@ -6,8 +6,18 @@ import { usePets } from "@/contexts/PetsContext";
 
 const defaultAvatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY";
 
+import { useAuth } from "@/contexts/AuthContext";
+
 export default function MyPatientsPage() {
   const { pets } = usePets();
+  const { user } = useAuth();
+  
+  // Use real user data or fallback if loading
+  const ownerName = user?.name || "Loading Name...";
+  const ownerEmail = "client@vetodiag.com"; // Email not in current context
+  const ownerId = user?.clientId || "LOADING-ID";
+
+
   return (
     <main className="flex-grow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -18,6 +28,50 @@ export default function MyPatientsPage() {
           <p className="mt-2 text-lg text-text-dark-secondary font-poppins">
             View and manage your beloved pets' health records.
           </p>
+        </div>
+
+        {/* Owner Pass Card */}
+        <div className="mb-8 bg-surface-dark rounded-xl shadow-lg border border-border-dark overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <span className="material-icons text-9xl text-white">badge</span>
+          </div>
+          <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
+            <div className="bg-white p-2 rounded-lg shrink-0">
+               {/* QR Code using public API for demo */}
+              <Image
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${ownerId}`}
+                alt="Owner QR Code"
+                width={150}
+                height={150}
+                className="rounded"
+                unoptimized
+              />
+            </div>
+            <div className="flex-grow text-center md:text-left">
+              <div className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-bold mb-2 uppercase tracking-wider">
+                Owner Pass
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-1">{ownerName}</h2>
+              <p className="text-gray-400 mb-6">{ownerEmail}</p>
+              
+              <div className="flex flex-col md:flex-row gap-4 items-center md:items-start">
+                <div className="bg-background-dark/50 px-4 py-2 rounded-lg border border-border-dark">
+                  <span className="text-xs text-gray-500 block uppercase tracking-wider">Owner ID</span>
+                  <p className="text-xl font-mono font-bold text-primary tracking-widest">{ownerId}</p>
+                </div>
+                <button 
+                  onClick={() => navigator.clipboard.writeText(ownerId)}
+                  className="p-3 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  title="Copy ID"
+                >
+                  <span className="material-icons">content_copy</span>
+                </button>
+              </div>
+              <p className="mt-4 text-sm text-gray-500 max-w-lg">
+                Share this ID or QR code with any Vetodiag doctor to give them temporary access to all your pets' medical records.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="bg-surface-dark rounded-lg shadow-lg border border-border-dark">

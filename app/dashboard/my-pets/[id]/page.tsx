@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { getPatientById, MOCK_PATIENTS } from "@/lib/mock-data/patients";
 
 const medicalHistory = [
   {
@@ -66,8 +68,21 @@ const externalResults = [
 
 export default function PetProfilePage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState("medical-history");
+  const [isPassOpen, setIsPassOpen] = useState(false);
 
-  const petData = {
+  const mockPatient = getPatientById(params.id);
+  
+  // Attempt to find mock patient, otherwise fallback to creating a display object from params
+  // In a real app, this would be a unified fetch
+  const petData = mockPatient ? {
+    name: mockPatient.name,
+    species: mockPatient.species,
+    breed: mockPatient.breed,
+    age: mockPatient.age,
+    weight: mockPatient.weight,
+    avatar: mockPatient.photoUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY",
+    accessCode: mockPatient.id // Use internal ID as the access code
+  } : {
     name: "Milo",
     species: "Canine",
     breed: "Golden Retriever",
@@ -75,6 +90,7 @@ export default function PetProfilePage({ params }: { params: { id: string } }) {
     weight: "72 lbs",
     avatar:
       "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY",
+    accessCode: params.id // Use the URL param ID as the access code
   };
 
   return (
@@ -179,6 +195,13 @@ export default function PetProfilePage({ params }: { params: { id: string } }) {
                 </button>
                 <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-accent-green text-black text-sm font-bold leading-normal tracking-[0.015em] flex-1 md:flex-auto hover:bg-opacity-80 transition-opacity">
                   <span className="truncate">Download Records</span>
+                </button>
+                <button 
+                  onClick={() => setIsPassOpen(true)}
+                  className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] flex-1 md:flex-auto hover:bg-primary/80 transition-opacity gap-2"
+                >
+                  <span className="material-icons text-sm">qr_code</span>
+                  <span className="truncate">Share Pass</span>
                 </button>
               </div>
             </div>
@@ -339,7 +362,63 @@ export default function PetProfilePage({ params }: { params: { id: string } }) {
             </div>
           </div>
         </div>
+
       </main>
+
+      {/* Patient Pass Modal */}
+      {isPassOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-surface-dark border border-border-dark rounded-2xl max-w-md w-full overflow-hidden shadow-2xl transform transition-all">
+            <div className="p-6 text-center">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-white">Patient Pass</h3>
+                <button 
+                  onClick={() => setIsPassOpen(false)}
+                  className="text-gray-400 hover:text-white transition-colors"
+                >
+                  <span className="material-icons">close</span>
+                </button>
+              </div>
+              
+              <div className="bg-white p-4 rounded-xl inline-block mb-6 shadow-inner">
+                <Image
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${petData.accessCode}`}
+                  alt="Patient QR Code"
+                  width={200}
+                  height={200}
+                  className="rounded-lg"
+                  unoptimized
+                />
+              </div>
+
+              <div className="bg-background-dark/50 rounded-xl p-4 border border-border-dark mb-6">
+                <p className="text-sm text-gray-400 uppercase tracking-wider mb-2">Patient Access ID</p>
+                <div className="flex items-center justify-center gap-3">
+                  <span className="text-2xl font-mono font-bold text-primary tracking-widest">{petData.accessCode}</span>
+                  <button 
+                    onClick={() => navigator.clipboard.writeText(petData.accessCode)}
+                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                  >
+                    <span className="material-icons">content_copy</span>
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-gray-400 text-sm">
+                Doctors can scan this QR code or enter the ID to access {petData.name}'s medical records instantly.
+              </p>
+            </div>
+            <div className="bg-white/5 p-4 border-t border-border-dark flex justify-center">
+              <button
+                onClick={() => setIsPassOpen(false)}
+                className="text-white hover:text-primary transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

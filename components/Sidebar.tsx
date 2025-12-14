@@ -18,6 +18,7 @@ export default function Sidebar() {
     { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
     { href: "/dashboard/my-pets", label: "My Pets", icon: "pets" },
     { href: "/dashboard/appointments", label: "Appointments", icon: "calendar_month" },
+    { href: "/dashboard/history", label: "History", icon: "history" },
     { href: "/dashboard/messages", label: "Messages", icon: "chat", useSymbols: true },
     { href: "/dashboard/billing", label: "Billing", icon: "credit_card" },
   ];

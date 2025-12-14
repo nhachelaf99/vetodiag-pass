@@ -15,7 +15,7 @@ export default function Header() {
   // Home page header (landing page)
   if (isHomePage) {
     return (
-      <header className="sticky top-0 z-[100] bg-background-dark/80 backdrop-blur-md border-b border-gray-800/50">
+      <header className="bg-background-dark border-x border-t border-gray-800/50 rounded-t-2xl sticky top-0 z-[100] backdrop-blur-md">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-6">
@@ -57,6 +57,12 @@ export default function Header() {
                 >
                   Contact
                 </Link>
+                <Link
+                  href="/doctor-access"
+                  className="text-gray-400 hover:text-primary transition-colors font-medium border border-gray-700 px-3 py-1 rounded-lg hover:border-primary"
+                >
+                  Doctor Access
+                </Link>
               </nav>
             </div>
             <div className="flex items-center space-x-4">
@@ -67,7 +73,7 @@ export default function Header() {
                 Log In
               </Link>
               <Link
-                href="/login"
+                href="/signup"
                 className="bg-primary text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-green-500 transition-all duration-300 transform hover:scale-105"
               >
                 Sign Up

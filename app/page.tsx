@@ -7,7 +7,7 @@ import InlineHeader from "@/components/InlineHeader";
 
 export default function Home() {
   return (
-    <>
+    <div className="container mx-auto px-6">
       <HeroSection />
       <FeaturesSection />
       <AboutSection />
@@ -16,6 +16,6 @@ export default function Home() {
         <InlineHeader />
         <CTASection />
       </div>
-    </>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ export default function ConditionalHeader() {
   const isMessagesRoute = pathname.startsWith("/dashboard/messages");
 
   // Show header for my-pets and messages routes, hide for other dashboard routes
-  if (isAuthRoute || (isDashboardRoute && !isMyPetsRoute && !isMessagesRoute) || isHomePage) {
+  if (isAuthRoute || (isDashboardRoute && !isMyPetsRoute && !isMessagesRoute)) {
     return null;
   }
 

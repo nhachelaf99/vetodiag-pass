@@ -3,17 +3,17 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useAuth } from "@/contexts/AuthContext";
 import VetoDiagLogoIcon from "@/components/icons/VetoDiagLogoIcon";
 
-export default function LoginPage() {
+export default function SignupPage() {
   const [formData, setFormData] = useState({
+    name: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,13 +21,17 @@ export default function LoginPage() {
     setError("");
     setIsLoading(true);
 
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match");
+      setIsLoading(false);
+      return;
+    }
+
+    // Simulate signup
     try {
-      const success = await login(formData.email, formData.password);
-      if (success) {
-        router.push("/dashboard");
-      } else {
-        setError("Invalid email or password");
-      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // For now, just redirect to login
+      router.push("/login");
     } catch (err) {
       setError("An error occurred. Please try again.");
     } finally {
@@ -55,10 +59,10 @@ export default function LoginPage() {
             </h1>
           </div>
           <h2 className="text-3xl font-bold text-white font-poppins">
-            Welcome Back
+            Create Account
           </h2>
           <p className="mt-2 text-gray-400 font-poppins">
-            Please enter your details to sign in.
+            Join us to manage your pet's health.
           </p>
         </div>
         <div className="bg-[#181C1A] p-8 rounded-lg">
@@ -66,9 +70,29 @@ export default function LoginPage() {
             <div>
               <label
                 className="block text-sm font-medium text-gray-300 mb-1 font-poppins"
+                htmlFor="name"
+              >
+                Full Name
+              </label>
+              <div className="mt-1">
+                <input
+                  autoComplete="name"
+                  className="w-full px-4 py-3 border border-gray-700/50 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary bg-[#0A0F0D] text-white font-poppins"
+                  id="name"
+                  name="name"
+                  required
+                  type="text"
+                  value={formData.name}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+            <div>
+              <label
+                className="block text-sm font-medium text-gray-300 mb-1 font-poppins"
                 htmlFor="email"
               >
-                Email or Username
+                Email Address
               </label>
               <div className="mt-1">
                 <input
@@ -92,7 +116,7 @@ export default function LoginPage() {
               </label>
               <div className="mt-1">
                 <input
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   className="w-full px-4 py-3 border border-gray-700/50 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary bg-[#0A0F0D] text-white font-poppins"
                   id="password"
                   name="password"
@@ -103,16 +127,27 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center justify-end">
-              <div className="text-sm">
-                <Link
-                  className="font-medium text-primary hover:text-primary/80 font-poppins"
-                  href="#"
-                >
-                  Forgot password?
-                </Link>
+            <div>
+              <label
+                className="block text-sm font-medium text-gray-300 mb-1 font-poppins"
+                htmlFor="confirmPassword"
+              >
+                Confirm Password
+              </label>
+              <div className="mt-1">
+                <input
+                  autoComplete="new-password"
+                  className="w-full px-4 py-3 border border-gray-700/50 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary bg-[#0A0F0D] text-white font-poppins"
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  required
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                />
               </div>
             </div>
+
             {error && (
               <div className="text-sm text-red-400 text-center font-poppins">
                 {error}
@@ -124,22 +159,21 @@ export default function LoginPage() {
                 type="submit"
                 disabled={isLoading}
               >
-                {isLoading ? "Signing In..." : "Sign In"}
+                {isLoading ? "creating Account..." : "Sign Up"}
               </button>
             </div>
           </form>
         </div>
         <p className="mt-6 text-center text-sm text-gray-400 font-poppins">
-          Don't have an account?{" "}
+          Already have an account?{" "}
           <Link
             className="font-medium text-primary hover:text-primary/80 font-poppins"
-            href="/signup"
+            href="/login"
           >
-            Sign up
+            Log in
           </Link>
         </p>
       </div>
     </div>
   );
 }
-

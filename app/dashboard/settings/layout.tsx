@@ -1,15 +1,7 @@
-import Sidebar from "@/components/Sidebar";
-
 export default function SettingsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <div className="flex h-screen bg-background-dark">
-      <Sidebar />
-      <main className="flex-1 p-8 overflow-y-auto">{children}</main>
-    </div>
-  );
+  return <>{children}</>;
 }
-
