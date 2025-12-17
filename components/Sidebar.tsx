@@ -31,12 +31,12 @@ export default function Sidebar() {
             className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
             style={{ backgroundImage: user?.avatar ? `url("${user.avatar}")` : 'none' }}
           />
-          <div className="flex flex-col">
-            <h1 className="text-base font-medium leading-normal text-white">
+          <div className="flex flex-col min-w-0">
+            <h1 className="text-base font-medium leading-normal text-white truncate" title={user?.name}>
               {user?.name || "User"}
             </h1>
-            <p className="text-sm font-normal leading-normal text-gray-400">
-              {user?.clientId || "user@email.com"}
+            <p className="text-sm font-normal leading-normal text-gray-400 truncate" title={user?.email}>
+              {user?.email || ""}
             </p>
           </div>
         </div>

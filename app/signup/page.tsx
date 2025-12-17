@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import VetoDiagLogoIcon from "@/components/icons/VetoDiagLogoIcon";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -16,6 +17,7 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
+  const { signUp } = useAuth();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -27,11 +29,13 @@ export default function SignupPage() {
       return;
     }
 
-    // Simulate signup
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // For now, just redirect to login
-      router.push("/login");
+      const success = await signUp(formData.email, formData.password, formData.name);
+      if (success) {
+        router.push("/login");
+      } else {
+        setError("Sign up failed. Please check your details.");
+      }
     } catch (err) {
       setError("An error occurred. Please try again.");
     } finally {

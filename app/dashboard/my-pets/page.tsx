@@ -1,261 +1,182 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
 import { usePets } from "@/contexts/PetsContext";
+import { useAuth } from "@/contexts/AuthContext";
+
+const defaultAvatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY";
 
 export default function MyPetsPage() {
-  const router = useRouter();
-  const { addPet } = usePets();
-  const [formData, setFormData] = useState({
-    petName: "",
-    species: "",
-    breed: "",
-    age: "",
-  });
-  const [photoUrl, setPhotoUrl] = useState<string>("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { pets, loading } = usePets();
+  const { user } = useAuth();
+  
+  // Use real user data or fallback if loading
+  const ownerName = user?.name || "Loading Name...";
+  const ownerEmail = user?.email || "loading@email.com";
+  const ownerId = user?.clientId || "LOADING-ID";
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrors({});
-
-    // Validation
-    const newErrors: Record<string, string> = {};
-    if (!formData.petName.trim()) {
-      newErrors.petName = "Pet's name is required";
-    }
-    if (!formData.species.trim()) {
-      newErrors.species = "Species is required";
-    }
-    if (!formData.breed.trim()) {
-      newErrors.breed = "Breed is required";
-    }
-    if (!formData.age.trim()) {
-      newErrors.age = "Age is required";
-    }
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // Add pet to context
-      addPet({
-        name: formData.petName.trim(),
-        species: formData.species.trim(),
-        breed: formData.breed.trim(),
-        age: formData.age.trim(),
-        photoUrl: photoUrl || undefined,
-        status: "Active",
-      });
-
-      // Reset form
-      setFormData({
-        petName: "",
-        species: "",
-        breed: "",
-        age: "",
-      });
-      setPhotoUrl("");
-      setErrors({});
-
-      // Redirect to patients page
-      router.push("/dashboard/my-pets/patients");
-    } catch (error) {
-      console.error("Error adding pet:", error);
-      setErrors({ submit: "Failed to add pet. Please try again." });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
-    // Clear error for this field when user starts typing
-    if (errors[e.target.name]) {
-      setErrors({
-        ...errors,
-        [e.target.name]: "",
-      });
-    }
-  };
-
-  const handleCancel = () => {
-    router.push("/dashboard/my-pets/patients");
-  };
 
   return (
-    <>
+    <main className="flex-grow">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold tracking-tight text-white">
-            Add a New Pet
+          <h1 className="text-4xl font-bold tracking-tight text-white font-poppins">
+            My Patients
           </h1>
-          <p className="mt-2 text-lg text-text-dark-secondary">
-            Enter the details below to register a new member of your family.
+          <p className="mt-2 text-lg text-text-dark-secondary font-poppins">
+            View and manage your beloved pets' health records.
           </p>
         </div>
-        <div className="bg-surface-dark rounded-lg shadow-lg border border-border-dark">
-          <form onSubmit={handleSubmit}>
-            <div className="p-8 md:p-10 space-y-8">
-              <div>
-                <label
-                  className="block text-sm font-medium text-white mb-2"
-                  htmlFor="pet-photo"
+
+        {/* Owner Pass Card */}
+        <div className="mb-8 bg-surface-dark rounded-xl shadow-lg border border-border-dark overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <span className="material-icons text-9xl text-white">badge</span>
+          </div>
+          <div className="p-6 md:p-8 flex flex-col md:flex-row gap-8 items-center md:items-start relative z-10">
+            <div className="bg-white p-2 rounded-lg shrink-0">
+               {/* QR Code using public API for demo */}
+              <Image
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${ownerId}`}
+                alt="Owner QR Code"
+                width={150}
+                height={150}
+                className="rounded"
+                unoptimized
+              />
+            </div>
+            <div className="flex-grow text-center md:text-left">
+              <div className="inline-block px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-bold mb-2 uppercase tracking-wider">
+                Owner Pass
+              </div>
+              <h2 className="text-3xl font-bold text-white mb-1">{ownerName}</h2>
+              <p className="text-gray-400 mb-6">{ownerEmail}</p>
+              
+              <div className="flex flex-col md:flex-row gap-4 items-center md:items-start">
+                <div className="bg-background-dark/50 px-4 py-2 rounded-lg border border-border-dark">
+                  <span className="text-xs text-gray-500 block uppercase tracking-wider">Owner ID</span>
+                  <p className="text-xl font-mono font-bold text-primary tracking-widest">{ownerId}</p>
+                </div>
+                <button 
+                  onClick={() => navigator.clipboard.writeText(ownerId)}
+                  className="p-3 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white transition-colors"
+                  title="Copy ID"
                 >
-                  Pet's Photo
-                </label>
-                <div className="mt-1 flex items-center space-x-5">
-                  <span className="inline-block h-20 w-20 rounded-full overflow-hidden bg-white/10 flex items-center justify-center">
-                    <svg
-                      className="h-12 w-12 text-text-dark-secondary"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 48 48"
-                    >
-                      <path
-                        d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </span>
-                  <button
-                    type="button"
-                    className="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-4 rounded-lg border border-border-dark transition-colors"
-                  >
-                    Upload Photo
-                  </button>
-                </div>
+                  <span className="material-icons">content_copy</span>
+                </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Left Column */}
-                <div>
-                  <label
-                    className="block text-sm font-medium text-white mb-2"
-                    htmlFor="pet-name"
-                  >
-                    Pet's Name
-                  </label>
-                  <input
-                    className={`block w-full bg-background-dark border ${
-                      errors.petName ? "border-red-500" : "border-border-dark"
-                    } rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3`}
-                    id="pet-name"
-                    name="petName"
-                    type="text"
-                    placeholder="e.g. Max"
-                    value={formData.petName}
-                    onChange={handleChange}
-                  />
-                  {errors.petName && (
-                    <p className="mt-1 text-sm text-red-500">{errors.petName}</p>
-                  )}
-                </div>
-                {/* Right Column */}
-                <div>
-                  <label
-                    className="block text-sm font-medium text-white mb-2"
-                    htmlFor="pet-species"
-                  >
-                    Species
-                  </label>
-                  <input
-                    className={`block w-full bg-background-dark border ${
-                      errors.species ? "border-red-500" : "border-border-dark"
-                    } rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3`}
-                    id="pet-species"
-                    name="species"
-                    type="text"
-                    placeholder="e.g. Canine"
-                    value={formData.species}
-                    onChange={handleChange}
-                  />
-                  {errors.species && (
-                    <p className="mt-1 text-sm text-red-500">{errors.species}</p>
-                  )}
-                </div>
-                {/* Left Column - Second Row */}
-                <div>
-                  <label
-                    className="block text-sm font-medium text-white mb-2"
-                    htmlFor="pet-breed"
-                  >
-                    Breed
-                  </label>
-                  <input
-                    className={`block w-full bg-background-dark border ${
-                      errors.breed ? "border-red-500" : "border-border-dark"
-                    } rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3`}
-                    id="pet-breed"
-                    name="breed"
-                    type="text"
-                    placeholder="e.g. Golden Retriever"
-                    value={formData.breed}
-                    onChange={handleChange}
-                  />
-                  {errors.breed && (
-                    <p className="mt-1 text-sm text-red-500">{errors.breed}</p>
-                  )}
-                </div>
-                {/* Right Column - Second Row */}
-                <div>
-                  <label
-                    className="block text-sm font-medium text-white mb-2"
-                    htmlFor="pet-age"
-                  >
-                    Age
-                  </label>
-                  <input
-                    className={`block w-full bg-background-dark border ${
-                      errors.age ? "border-red-500" : "border-border-dark"
-                    } rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3`}
-                    id="pet-age"
-                    name="age"
-                    type="text"
-                    placeholder="e.g. 5 years"
-                    value={formData.age}
-                    onChange={handleChange}
-                  />
-                  {errors.age && (
-                    <p className="mt-1 text-sm text-red-500">{errors.age}</p>
-                  )}
-                </div>
-              </div>
+              <p className="mt-4 text-sm text-gray-500 max-w-lg">
+                Share this ID or QR code with any Vetodiag doctor to give them temporary access to all your pets' medical records.
+              </p>
             </div>
-            <div className="px-8 py-5 bg-white/5 border-t border-border-dark flex justify-end space-x-3">
-              {errors.submit && (
-                <p className="text-sm text-red-500 mr-auto">{errors.submit}</p>
-              )}
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-5 py-2.5 text-sm font-semibold text-white bg-transparent rounded-lg hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-surface-dark transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-sm font-semibold rounded-lg shadow-md hover:bg-green-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-surface-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <span className="material-icons text-base">add</span>
-                {isSubmitting ? "Adding..." : "Add Pet"}
-              </button>
-            </div>
-          </form>
+          </div>
+        </div>
+
+        <div className="bg-surface-dark rounded-lg shadow-lg border border-border-dark">
+          <div className="p-6 border-b border-border-dark flex justify-between items-center">
+            <h2 className="text-xl font-bold text-white font-poppins">
+              Your Registered Pets
+            </h2>
+            <Link
+              href="/dashboard/my-pets/add"
+              className="bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2"
+            >
+              <span className="material-icons text-base">add</span>
+              Add New Patient
+            </Link>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-white/5">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    PATIENT
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    SPECIES
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    BREED
+                  </th>
+                   <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    SEX
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    AGE
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    ACTIONS
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-dark">
+                {loading ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                        <div className="flex flex-col items-center justify-center">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
+                            Loading your pets...
+                        </div>
+                      </td>
+                    </tr>
+                ) : pets.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                      No pets registered yet.{" "}
+                      <Link
+                        href="/dashboard/my-pets/add"
+                        className="text-primary hover:underline"
+                      >
+                        Add your first pet
+                      </Link>
+                    </td>
+                  </tr>
+                ) : (
+                  pets.map((patient) => (
+                    <tr key={patient.id} className="hover:bg-white/5 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <Image
+                            src={patient.photoUrl || defaultAvatar}
+                            alt={patient.name}
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 rounded-full object-cover bg-white/10"
+                            unoptimized
+                          />
+                          <span className="text-white font-medium">{patient.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-300 capitalize">
+                        {patient.species}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-300">
+                        {patient.breed}
+                      </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-gray-300 capitalize">
+                        {patient.sex || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-300">
+                        {patient.age}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <Link
+                          href={`/dashboard/my-pets/${patient.id}`}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          View Records
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </>
+    </main>
   );
 }
-
