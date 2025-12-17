@@ -6,6 +6,8 @@ import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
 import NotificationIcon from "@/components/icons/NotificationIcon";
 
+const defaultAvatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuAfz1EGnpOhsGzJbweveovW0krpbjcOiOz0k8b8kvA6yiFGYQlUgr0G-HYGCIuJw8D4rkILKUE8cJzgZjHhiM39cItF02BmOKG53cI7fZwbzttUKqixfqRF9_kLjjgYxqwLfcNN8VoYMu_RW3_eRXvEb5GFnPf2vEtjc0gAWt-kNlgiuCjxEJ_BHbFfJ-BpR4573OzUz8w09PgN7Dtbjn-z27x9hiHPP5Uu-VyGbY-T_90lkwWRHkCcSgqnUD3LZ6mwXS1lu2B__-c";
+
 export default function Header() {
   const pathname = usePathname();
   const isMyPetsActive = pathname === "/dashboard/my-pets" || pathname.startsWith("/dashboard/my-pets");
@@ -151,7 +153,7 @@ export default function Header() {
                 </button>
                 <div className="flex items-center space-x-3">
                   <Image
-                    src={user?.avatar || ""}
+                    src={user?.avatar || defaultAvatar}
                     alt="User avatar"
                     width={36}
                     height={36}
@@ -163,7 +165,7 @@ export default function Header() {
                       {user?.name || ""}
                     </p>
                     <p className="text-xs text-text-dark-secondary">
-                      Client ID: {user?.clientId || ""}
+                      User Code: {user?.userCode || ""}
                     </p>
                   </div>
                 </div>

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function InlineHeader() {
+  const { user, loading } = useAuth();
   return (
     <header className="bg-background-dark border-x border-t border-gray-800/50 rounded-t-2xl">
       <div className="container mx-auto px-6 py-4">
@@ -49,18 +51,31 @@ export default function InlineHeader() {
             </nav>
           </div>
           <div className="flex items-center space-x-4">
-            <Link
-              href="/login"
-              className="hidden md:block text-gray-400 hover:text-primary transition-colors font-medium"
-            >
-              Log In
-            </Link>
-            <Link
-              href="/login"
-              className="bg-primary text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-green-500 transition-all duration-300 transform hover:scale-105"
-            >
-              Sign Up
-            </Link>
+            {loading ? (
+               <div className="w-20 h-8 bg-gray-700/50 rounded animate-pulse"></div>
+            ) : user ? (
+              <Link
+                href="/dashboard"
+                className="bg-primary text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-green-500 transition-all duration-300 transform hover:scale-105"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/login"
+                  className="hidden md:block text-gray-400 hover:text-primary transition-colors font-medium"
+                >
+                  Log In
+                </Link>
+                <Link
+                  href="/login"
+                  className="bg-primary text-white font-bold py-2 px-6 rounded-lg shadow-lg hover:bg-green-500 transition-all duration-300 transform hover:scale-105"
+                >
+                  Sign Up
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

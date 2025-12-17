@@ -32,7 +32,7 @@ export default function SettingsPage() {
   };
 
   const handleCopyCode = () => {
-    const code = user?.clientId ? `JD-${user.clientId}` : "JD-84312";
+    const code = user?.userCode || "";
     navigator.clipboard.writeText(code);
   };
 
@@ -42,7 +42,7 @@ export default function SettingsPage() {
     console.log("Form submitted", formData, notifications);
   };
 
-  const clientCode = user?.clientId ? `JD-${user.clientId}` : "JD-84312";
+  const userCode = user?.userCode || "N/A";
   const memberSince = "2019";
 
   return (
@@ -75,10 +75,10 @@ export default function SettingsPage() {
           <div className="flex items-center gap-4 p-4 rounded-lg bg-surface-dark border border-border-dark">
             <div className="flex flex-col">
               <p className="text-sm font-normal text-text-dark-secondary">
-                Client Code
+                User Code
               </p>
               <p className="text-xl font-semibold tracking-wider text-white">
-                {clientCode}
+                {userCode}
               </p>
             </div>
             <button

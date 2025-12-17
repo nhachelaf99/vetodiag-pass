@@ -61,7 +61,7 @@ export default function MyPetsSection() {
           className="flex items-center justify-center bg-card-dark p-6 rounded-lg border-2 border-dashed border-border-dark hover:border-primary transition-colors cursor-pointer"
         >
           <div className="text-center text-gray-400">
-            <span className="material-symbols-outlined text-4xl">add_circle</span>
+            <span className="material-icons text-4xl">add_circle</span>
             <p className="mt-2 font-semibold">Add New Pet</p>
           </div>
         </Link>

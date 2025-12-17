@@ -10,11 +10,13 @@ interface User {
   email?: string;
   clinicId?: string;
   clinicName?: string;
+  userCode?: string;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
+  loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   signUp: (email: string, password: string, name: string) => Promise<boolean>;
@@ -33,47 +35,81 @@ const defaultUser: User = {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Consolidate initialization to prioritize Supabase session but fallback to localStorage
   useEffect(() => {
     const initializeAuth = async () => {
-      // 1. Try to get session from Supabase (most reliable source of truth)
-      const { data: { session } } = await supabase.auth.getSession();
-      
-        if (session?.user) {
-          // Fetch clinic details from public.users
-          const { data: userData } = await supabase
-            .from('users')
-            .select('clinic_id, clinic_name')
-            .eq('id', session.user.id)
-            .single();
+      try {
+        // 1. Try to get session from Supabase (most reliable source of truth)
+        const { data: { session } } = await supabase.auth.getSession();
+        
+          if (session?.user) {
+            // Fetch clinic details from public.users
+            const { data: userData } = await supabase
+              .from('users')
+              .select('clinic_id, clinic_name, user_code, first_name, last_name')
+              .eq('id', session.user.id)
+              .single();
 
-          console.log("Supabase session found:", session.user.email);
-          const userInfo = {
-            name: session.user.user_metadata.full_name || session.user.email || "",
-            clientId: session.user.id,
-            email: session.user.email, // Ensure this field is set!
-            avatar: session.user.user_metadata.avatar_url || "",
-            clinicId: userData?.clinic_id || undefined,
-            clinicName: userData?.clinic_name || undefined,
-          };
-          setUser(userInfo);
+            let currentUserCode = userData?.user_code;
+
+            // Backfill user_code if missing
+            if (!currentUserCode) {
+                console.log("Generating missing user_code for existing user...");
+                const generateUserCode = () => {
+                    const randomPart1 = Math.floor(100 + Math.random() * 900);
+                    const randomPart2 = Math.floor(100 + Math.random() * 900);
+                    return `OWN-${randomPart1}-${randomPart2}`;
+                };
+                const newCode = generateUserCode();
+                
+                const { error: updateError } = await supabase
+                    .from('users')
+                    .update({ user_code: newCode })
+                    .eq('id', session.user.id);
+                
+                if (!updateError) {
+                    currentUserCode = newCode;
+                } else {
+                    console.error("Failed to backfill user_code", updateError);
+                }
+            }
+  
+            console.log("Supabase session found:", session.user.email);
+            const fullName = userData 
+                ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() 
+                : session.user.user_metadata.full_name;
+
+            const userInfo = {
+              name: fullName || session.user.email || "",
+              clientId: session.user.id,
+              email: session.user.email, // Ensure this field is set!
+              avatar: session.user.user_metadata.avatar_url || "",
+              clinicId: userData?.clinic_id || undefined,
+              clinicName: userData?.clinic_name || undefined,
+              userCode: currentUserCode || undefined,
+            };
+            setUser(userInfo);
+            setIsAuthenticated(true);
+            // Sync to local storage
+            localStorage.setItem("isAuthenticated", "true");
+            localStorage.setItem("user", JSON.stringify(userInfo));
+            return;
+          }
+  
+        // 2. Fallback to local storage if no active session (offline or persistent state)
+        // Note: This might be stale, but better than nothing while loading.
+        const storedAuth = localStorage.getItem("isAuthenticated");
+        const storedUser = localStorage.getItem("user");
+  
+        if (storedAuth === "true" && storedUser) {
+          console.log("Loading from localStorage fallback");
           setIsAuthenticated(true);
-          // Sync to local storage
-          localStorage.setItem("isAuthenticated", "true");
-          localStorage.setItem("user", JSON.stringify(userInfo));
-          return;
+          setUser(JSON.parse(storedUser));
         }
-
-      // 2. Fallback to local storage if no active session (offline or persistent state)
-      // Note: This might be stale, but better than nothing while loading.
-      const storedAuth = localStorage.getItem("isAuthenticated");
-      const storedUser = localStorage.getItem("user");
-
-      if (storedAuth === "true" && storedUser) {
-        console.log("Loading from localStorage fallback");
-        setIsAuthenticated(true);
-        setUser(JSON.parse(storedUser));
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -86,9 +122,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Fetch clinic details from public.users
           const { data: userData } = await supabase
             .from('users')
-            .select('clinic_id, clinic_name')
+            .select('clinic_id, clinic_name, user_code')
             .eq('id', session.user.id)
             .single();
+
+         let currentUserCode = userData?.user_code;
+
+         if (!currentUserCode) {
+             const generateUserCode = () => {
+                 const randomPart1 = Math.floor(100 + Math.random() * 900);
+                 const randomPart2 = Math.floor(100 + Math.random() * 900);
+                 return `OWN-${randomPart1}-${randomPart2}`;
+             };
+             const newCode = generateUserCode();
+             const { error: updateError } = await supabase
+                 .from('users')
+                 .update({ user_code: newCode })
+                 .eq('id', session.user.id);
+             
+             if (!updateError) {
+                 currentUserCode = newCode;
+             }
+         }
 
          const userInfo = {
           name: session.user.user_metadata.full_name || session.user.email || "",
@@ -97,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatar: session.user.user_metadata.avatar_url || "",
           clinicId: userData?.clinic_id || undefined,
           clinicName: userData?.clinic_name || undefined,
+          userCode: currentUserCode || undefined,
         };
         setUser(userInfo);
         setIsAuthenticated(true);
@@ -124,17 +180,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error('Login error:', error.message);
         if (error.message.includes("Email not confirmed")) {
-           // Optionally throw a specific error or handle it in UI
            console.warn("Please verify your email address.");
         }
         return false;
       }
       if (data?.user) {
+        // Fetch detailed profile from public.users
+        const { data: userProfile } = await supabase
+            .from('users')
+            .select('first_name, last_name, user_code, clinic_id, clinic_name')
+            .eq('id', data.user.id)
+            .single();
+
+        const fullName = userProfile 
+            ? `${userProfile.first_name} ${userProfile.last_name}`.trim() 
+            : (data.user.user_metadata.full_name || data.user.email);
+            
         const userInfo = {
-          name: data.user.user_metadata.full_name || data.user.email,
+          name: fullName || data.user.email || "",
           clientId: data.user.id,
           email: data.user.email,
           avatar: data.user.user_metadata.avatar_url || "",
+          clinicId: userProfile?.clinic_id || undefined,
+          clinicName: userProfile?.clinic_name || undefined,
+          userCode: userProfile?.user_code || undefined,
         };
         setIsAuthenticated(true);
         setUser(userInfo);
@@ -223,6 +292,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
          const personalClinicId = clinicData?.id;
 
+         // Generate readable user code OWN-XXX-XXX
+         const generateUserCode = () => {
+             const randomPart1 = Math.floor(100 + Math.random() * 900);
+             const randomPart2 = Math.floor(100 + Math.random() * 900);
+             return `OWN-${randomPart1}-${randomPart2}`;
+         };
+         const user_code = generateUserCode();
+
          const { error: upsertError } = await supabase
            .from('users')
            .upsert([
@@ -235,6 +312,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                status: true,
                clinic_id: personalClinicId,
                clinic_name: `${firstName}'s Home`,
+               user_code: user_code,
              },
            ], {
              onConflict: 'id'
@@ -254,7 +332,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, user, login, logout, signUp }}>
+    <AuthContext.Provider value={{ isAuthenticated, user, loading, login, logout, signUp }}>
       {children}
     </AuthContext.Provider>
   );

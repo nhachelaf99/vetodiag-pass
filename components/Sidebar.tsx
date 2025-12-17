@@ -19,7 +19,7 @@ export default function Sidebar() {
     { href: "/dashboard/my-pets", label: "My Pets", icon: "pets" },
     { href: "/dashboard/appointments", label: "Appointments", icon: "calendar_month" },
     { href: "/dashboard/history", label: "History", icon: "history" },
-    { href: "/dashboard/messages", label: "Messages", icon: "chat", useSymbols: true },
+    { href: "/dashboard/messages", label: "Messages", icon: "chat" },
     { href: "/dashboard/billing", label: "Billing", icon: "credit_card" },
   ];
 
@@ -35,17 +35,17 @@ export default function Sidebar() {
             <h1 className="text-base font-medium leading-normal text-white truncate" title={user?.name}>
               {user?.name || "User"}
             </h1>
-            <p className="text-sm font-normal leading-normal text-gray-400 truncate" title={user?.email}>
-              {user?.email || ""}
+            <p className="text-sm font-normal leading-normal text-gray-400 truncate" title={user?.userCode}>
+              {user?.userCode || ""}
             </p>
           </div>
         </div>
         <nav className="flex-1 px-4 py-4 space-y-2">
           {navItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            const IconComponent = item.useSymbols ? "span" : "span";
-            const iconClass = item.useSymbols ? "material-symbols-outlined" : "material-icons";
-            const iconStyle = item.useSymbols && isActive ? { fontVariationSettings: "'FILL' 1" } : {};
+            const IconComponent = "span";
+            const iconClass = "material-icons";
+            const iconStyle = {};
             
             return (
               <Link
@@ -74,8 +74,8 @@ export default function Sidebar() {
           }`}
         >
           <span 
-            className="material-symbols-outlined"
-            style={pathname === "/dashboard/settings" ? { fontVariationSettings: "'FILL' 1" } : {}}
+            className="material-icons"
+            style={pathname === "/dashboard/settings" ? { } : {}}
           >
             settings
           </span>
@@ -85,7 +85,7 @@ export default function Sidebar() {
           href="/help"
           className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-gray-300 transition-colors"
         >
-          <span className="material-symbols-outlined">help</span>
+          <span className="material-icons">help_outline</span>
           <span className="text-sm font-medium">Help</span>
         </Link>
         <button

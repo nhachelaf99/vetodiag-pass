@@ -7,6 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const defaultAvatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY";
 
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
+
 export default function MyPetsPage() {
   const { pets, loading } = usePets();
   const { user } = useAuth();
@@ -14,12 +16,14 @@ export default function MyPetsPage() {
   // Use real user data or fallback if loading
   const ownerName = user?.name || "Loading Name...";
   const ownerEmail = user?.email || "loading@email.com";
-  const ownerId = user?.clientId || "LOADING-ID";
+  // Prefer userCode if available, otherwise clientId
+  const ownerId = user?.userCode || user?.clientId || "LOADING-ID";
 
 
   return (
-    <main className="flex-grow">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+    <div className="flex-grow font-inter">
+      <DashboardHeader />
+      <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold tracking-tight text-white font-poppins">
             My Patients
@@ -95,6 +99,9 @@ export default function MyPetsPage() {
                     PATIENT
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
+                    PASS ID
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
                     SPECIES
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -114,7 +121,7 @@ export default function MyPetsPage() {
               <tbody className="divide-y divide-border-dark">
                 {loading ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                      <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                         <div className="flex flex-col items-center justify-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
                             Loading your pets...
@@ -123,7 +130,7 @@ export default function MyPetsPage() {
                     </tr>
                 ) : pets.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                       No pets registered yet.{" "}
                       <Link
                         href="/dashboard/my-pets/add"
@@ -148,6 +155,11 @@ export default function MyPetsPage() {
                           />
                           <span className="text-white font-medium">{patient.name}</span>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/30 text-blue-300 border border-blue-800">
+                            {patient.patientCode || 'N/A'}
+                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-300 capitalize">
                         {patient.species}
@@ -177,6 +189,6 @@ export default function MyPetsPage() {
           </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

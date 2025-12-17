@@ -16,9 +16,12 @@ export default function ConditionalHeader() {
   const isMyPetsRoute = pathname.startsWith("/dashboard/my-pets");
   const isMessagesRoute = pathname.startsWith("/dashboard/messages");
 
-  // Show header for my-pets and messages routes, hide for other dashboard routes
-  if (isAuthRoute || (isDashboardRoute && !isMyPetsRoute && !isMessagesRoute)) {
-    return null;
+
+
+  // Show header ONLY for messages routes (currently), hide for other dashboard routes including my-pets which now uses sidebar
+  if (isAuthRoute || (isDashboardRoute) || (isMyPetsRoute)) {
+     if (isMessagesRoute) return <Header />; // Exception: Messages still uses top header? User said "same header/sidebar as OTHER pages", implying my-pets should be standard.
+     return null;
   }
 
   return <Header />;

@@ -54,10 +54,10 @@ export default function ProfilePage() {
               </h3>
               <div>
                 <label className="block text-sm font-medium text-gray-500 uppercase tracking-wider">
-                  Client ID
+                  User ID
                 </label>
                 <p className="text-lg font-mono text-primary mt-1 tracking-wide">
-                  {user?.clientId || "N/A"}
+                  {user?.userCode || "N/A"}
                 </p>
               </div>
               <div>

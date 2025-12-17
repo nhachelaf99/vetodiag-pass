@@ -12,8 +12,9 @@ export default function DashboardLayout({
   const isMyPetsRoute = pathname.startsWith("/dashboard/my-pets");
   const isMessagesRoute = pathname.startsWith("/dashboard/messages");
 
-  // My-pets and messages routes use Header (from ConditionalHeader), not Sidebar
-  if (isMyPetsRoute || isMessagesRoute) {
+  // My-pets routes should now use the standard Sidebar layout, so we remove it from the exception.
+  // Only messages route currently uses Header (from ConditionalHeader)
+  if (isMessagesRoute) {
     return <>{children}</>;
   }
 

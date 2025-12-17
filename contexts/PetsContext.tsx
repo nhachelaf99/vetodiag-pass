@@ -12,7 +12,8 @@ export interface Pet {
   photoUrl?: string;
   createdAt: string;
   status?: "Active" | "Inactive";
-  sex?: "male" | "female"; // Add sex to interface
+  sex?: "male" | "female";
+  patientCode?: string;
 }
 
 interface PetsContextType {
@@ -140,6 +141,14 @@ export function PetsProvider({ children }: { children: ReactNode }) {
           speciesCategory = 'other';
       }
 
+      // Generate readable patient code PAT-XXX-XXX
+      const generatePatientCode = () => {
+          const randomPart1 = Math.floor(100 + Math.random() * 900);
+          const randomPart2 = Math.floor(100 + Math.random() * 900);
+          return `PAT-${randomPart1}-${randomPart2}`;
+      };
+      const patient_code = generatePatientCode();
+
       const newPatient = {
           clinic_id: userData.clinic_id,
           name: petData.name,
@@ -148,6 +157,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
           sex: petData.sex || 'male', // Default if missing
           date_of_birth: dob,
           photo_url: petData.photoUrl,
+          patient_code: patient_code,
           // owner_id: null // Implicitly null
       };
 
@@ -173,6 +183,7 @@ export function PetsProvider({ children }: { children: ReactNode }) {
             createdAt: data.created_at,
             status: "Active",
             sex: data.sex,
+            patientCode: data.patient_code,
         };
         setPets((prev) => [newPet, ...prev]);
         return true;
