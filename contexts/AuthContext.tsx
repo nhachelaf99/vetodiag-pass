@@ -178,11 +178,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       });
       if (error) {
-        console.error('Login error:', error.message);
         if (error.message.includes("Email not confirmed")) {
-           console.warn("Please verify your email address.");
+           throw new Error("Please verify your email address before logging in.");
         }
-        return false;
+        console.error('Login error:', error.message);
+        throw new Error(error.message);
       }
       if (data?.user) {
         // Fetch detailed profile from public.users
@@ -212,9 +212,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true;
       }
       return false;
-    } catch (err) {
-      console.error('Unexpected login error:', err);
-      return false;
+    } catch (err: any) {
+      // Re-throw the error so the UI can catch it
+      throw err;
     }
   };
 
@@ -239,7 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('users')
         .select('email')
         .eq('email', email)
-        .single();
+        .maybeSingle();
 
       if (existingUser) {
         console.error('Sign up error: Email already used');
@@ -251,7 +251,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .from('client')
         .select('nin')
         .eq('nin', nin.trim())
-        .single();
+        .maybeSingle();
 
       // 4. Check if NIN exists in client table
       let existingClient = null;
@@ -340,15 +340,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                  name: `${firstName}'s Home`,
                  address: 'Personal',
                  region: 'Personal',
-                 startDate: new Date().toISOString(),
-                 endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 100)).toISOString(),
+                 startdate: new Date().toISOString(),
+                 enddate: new Date(new Date().setFullYear(new Date().getFullYear() + 100)).toISOString(),
                }
              ])
              .select()
              .single();
 
            if (clinicError) {
-               console.error('Error creating personal clinic:', clinicError);
+               console.error('Error creating personal clinic:', clinicError.message, clinicError.details, clinicError.hint);
            } else {
              personalClinicId = clinicData?.id;
              clinicName = `${firstName}'s Home`;

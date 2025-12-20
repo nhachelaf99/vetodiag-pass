@@ -39,7 +39,7 @@ export default function SignupPage() {
     try {
       const success = await signUp(formData.email, formData.password, formData.name, formData.nin);
       if (success) {
-        router.push("/login");
+        router.push("/login?registered=true");
       } else {
         setError("Sign up failed. Please check your details.");
       }

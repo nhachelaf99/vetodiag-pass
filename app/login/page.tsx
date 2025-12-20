@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import VetoDiagLogoIcon from "@/components/icons/VetoDiagLogoIcon";
+import { useEffect } from "react";
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -12,9 +13,17 @@ export default function LoginPage() {
     password: "",
   });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams.get("registered")) {
+      setSuccess("Registration successful! Please check your email to verify your account before logging in.");
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,11 +34,9 @@ export default function LoginPage() {
       const success = await login(formData.email, formData.password);
       if (success) {
         router.push("/dashboard");
-      } else {
-        setError("Invalid email or password");
       }
-    } catch (err) {
-      setError("An error occurred. Please try again.");
+    } catch (err: any) {
+      setError(err.message || "An error occurred. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -61,6 +68,13 @@ export default function LoginPage() {
             Please enter your details to sign in.
           </p>
         </div>
+        
+        {success && (
+          <div className="mb-6 p-4 bg-green-900/40 border border-green-500/50 rounded-lg text-green-200 text-sm text-center font-poppins">
+            {success}
+          </div>
+        )}
+
         <div className="bg-[#181C1A] p-8 rounded-lg">
           <form action="#" className="space-y-6" method="POST" onSubmit={handleSubmit}>
             <div>
