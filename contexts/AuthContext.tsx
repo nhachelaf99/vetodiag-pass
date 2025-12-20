@@ -19,7 +19,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  signUp: (email: string, password: string, name: string) => Promise<boolean>;
+  signUp: (email: string, password: string, name: string, nin?: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -226,9 +226,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("user");
   };
 
-  const signUp = async (email: string, password: string, name: string): Promise<boolean> => {
+  const signUp = async (email: string, password: string, name: string, nin?: string): Promise<boolean> => {
     try {
-      // 1. Check if email already exists in public.users (optional but good for UX)
+      // 1. Validate NIN is provided and is 15 digits
+      if (!nin || nin.trim().length !== 15) {
+        console.error('Sign up error: NIN is required and must be 15 digits');
+        return false;
+      }
+
+      // 2. Check if email already exists in public.users
       const { data: existingUser } = await supabase
         .from('users')
         .select('email')
@@ -240,12 +246,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      // 2. Split full name into first and last name
-      const nameParts = name.trim().split(" ");
-      const firstName = nameParts[0];
-      const lastName = nameParts.slice(1).join(" ") || "";
+      // 3. Check if NIN already exists in users table (ensure uniqueness)
+      const { data: existingUserWithNIN } = await supabase
+        .from('client')
+        .select('nin')
+        .eq('nin', nin.trim())
+        .single();
 
-      // 3. Sign up with Supabase Auth
+      // 4. Check if NIN exists in client table
+      let existingClient = null;
+      if (existingUserWithNIN) {
+        console.log('🔍 Checking for existing client with NIN:', nin);
+        const { data: clientData, error: clientError } = await supabase
+          .from('client')
+          .select('*')
+          .eq('nin', nin.trim())
+          .single();
+
+        if (!clientError && clientData) {
+          existingClient = clientData;
+          console.log('✅ Found existing client with matching NIN');
+        }
+      }
+
+      // 5. Split full name into first and last name
+      // If client exists, prefer their name from the client table
+      let firstName, lastName;
+      
+      if (existingClient && existingClient.full_name) {
+        // Use the name from the existing client record
+        const clientNameParts = existingClient.full_name.trim().split(" ");
+        firstName = clientNameParts[0];
+        lastName = clientNameParts.slice(1).join(" ") || "";
+        console.log(`📝 Using name from existing client: ${existingClient.full_name}`);
+      } else {
+        // Use the name provided during registration
+        const nameParts = name.trim().split(" ");
+        firstName = nameParts[0];
+        lastName = nameParts.slice(1).join(" ") || "";
+      }
+
+      // 6. Determine role: only 'client' if NIN matches existing client, otherwise 'worker'
+      const userRole = existingClient ? 'client' : 'worker';
+      console.log(`👤 Assigning role: ${userRole}`);
+
+      // 7. Sign up with Supabase Auth
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -254,7 +299,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             first_name: firstName,
             last_name: lastName,
             full_name: name,
-            role: 'worker', // Default role for now, as schema requires valid enum
+            role: userRole,
           },
         },
       });
@@ -265,40 +310,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (data?.user) {
-         // 4. Manuall upsert to ensure data in public.users (Mirroring CRM logic)
-         // Wait a brief moment to allow any triggers to attempt first
+         // 8. Wait a brief moment to allow any triggers to attempt first
          await new Promise((resolve) => setTimeout(resolve, 500));
 
-         // 4a. Create a personal "clinic" for this user to satisfy RLS policies
-         // This allows the user to have a "clinic_id" which is required to view/add patients
-         const { data: clinicData, error: clinicError } = await supabase
-           .from('clinique')
-           .insert([
-             {
-               owner: data.user.id,
-               name: `${firstName}'s Home`,
-               address: 'Personal',
-               region: 'Personal',
-               startDate: new Date().toISOString(),
-               endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 100)).toISOString(), // Long expiry
-             }
-           ])
-           .select()
-           .single();
+         let personalClinicId = null;
+         let clinicName = '';
 
-         if (clinicError) {
-             console.error('Error creating personal clinic:', clinicError);
+         // 9. Handle clinic assignment
+         if (existingClient && existingClient.clinic_id) {
+           // Use the clinic from the existing client record (only if NIN matched)
+           personalClinicId = existingClient.clinic_id;
+           
+           // Fetch clinic name
+           const { data: clinicData } = await supabase
+             .from('clinique')
+             .select('name')
+             .eq('id', personalClinicId)
+             .single();
+           
+           clinicName = clinicData?.name || 'Unknown Clinic';
+           console.log(`🏥 Using existing clinic: ${clinicName}`);
+         } else {
+           // Create a personal "clinic" for this user (NIN didn't match any client)
+           const { data: clinicData, error: clinicError } = await supabase
+             .from('clinique')
+             .insert([
+               {
+                 owner: data.user.id,
+                 name: `${firstName}'s Home`,
+                 address: 'Personal',
+                 region: 'Personal',
+                 startDate: new Date().toISOString(),
+                 endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 100)).toISOString(),
+               }
+             ])
+             .select()
+             .single();
+
+           if (clinicError) {
+               console.error('Error creating personal clinic:', clinicError);
+           } else {
+             personalClinicId = clinicData?.id;
+             clinicName = `${firstName}'s Home`;
+             console.log('🏥 Created personal clinic (NIN did not match existing client)');
+           }
          }
 
-         const personalClinicId = clinicData?.id;
-
-         // Generate readable user code OWN-XXX-XXX
+         // 10. Generate readable user code OWN-XXX-XXX
          const generateUserCode = () => {
              const randomPart1 = Math.floor(100 + Math.random() * 900);
              const randomPart2 = Math.floor(100 + Math.random() * 900);
              return `OWN-${randomPart1}-${randomPart2}`;
          };
          const user_code = generateUserCode();
+
+         // 11. Upsert user data
+         // Log all data being transferred from client to user
+         if (existingClient) {
+           console.log('📊 Transferring client data to user record:');
+           console.log('  - Name:', `${firstName} ${lastName}`);
+           console.log('  - Clinic ID:', personalClinicId);
+           console.log('  - Clinic Name:', clinicName);
+           console.log('  - Role:', userRole);
+         }
 
          const { error: upsertError } = await supabase
            .from('users')
@@ -308,10 +382,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                first_name: firstName,
                last_name: lastName,
                email: email,
-               role: 'worker', // Schema requires valid enum: 'doctor', 'worker', 'admin'
+               role: userRole,
                status: true,
                clinic_id: personalClinicId,
-               clinic_name: `${firstName}'s Home`,
+               clinic_name: clinicName,
                user_code: user_code,
              },
            ], {
@@ -321,9 +395,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
          if (upsertError) {
            console.error('Error upserting user data:', upsertError);
          }
+
+         // 12. Only create client record if NIN did NOT match existing client
+         if (!existingClient) {
+           console.log('📝 Creating new client record with NIN (no existing client found)');
+           const { error: clientCreateError } = await supabase
+             .from('client')
+             .insert([
+               {
+                 full_name: name,
+                 email: email,
+                 nin: nin.trim(),
+                 clinic_id: personalClinicId,
+                 telephone: '', // Can be updated later
+                 address: '',
+                 region: '',
+               }
+             ]);
+
+           if (clientCreateError) {
+             console.error('Error creating client record:', clientCreateError);
+             // Check if it's a unique constraint violation
+             if (clientCreateError.code === '23505') {
+               console.error('NIN already exists in database');
+             }
+           } else {
+             console.log('✅ Created new client record');
+           }
+         }
+
+         console.log(`✅ User registration complete with role: ${userRole}`);
       }
 
-      // After sign up, you may want to auto-login or prompt email confirmation.
+      // After sign up, redirect to login
       return true;
     } catch (err) {
       console.error('Unexpected sign up error:', err);

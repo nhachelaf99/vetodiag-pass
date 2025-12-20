@@ -12,6 +12,7 @@ export default function SignupPage() {
     email: "",
     password: "",
     confirmPassword: "",
+    nin: "",
   });
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,8 +30,14 @@ export default function SignupPage() {
       return;
     }
 
+    if (!formData.nin || formData.nin.trim().length !== 15) {
+      setError("NIN must be exactly 15 digits");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const success = await signUp(formData.email, formData.password, formData.name);
+      const success = await signUp(formData.email, formData.password, formData.name, formData.nin);
       if (success) {
         router.push("/login");
       } else {
@@ -90,6 +97,32 @@ export default function SignupPage() {
                   onChange={handleChange}
                 />
               </div>
+            </div>
+            <div>
+              <label
+                className="block text-sm font-medium text-gray-300 mb-1 font-poppins"
+                htmlFor="nin"
+              >
+                NIN (Numéro d'Identification Nationale) *
+              </label>
+              <div className="mt-1">
+                <input
+                  autoComplete="off"
+                  className="w-full px-4 py-3 border border-gray-700/50 rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-primary focus:border-primary bg-[#0A0F0D] text-white font-poppins"
+                  id="nin"
+                  name="nin"
+                  placeholder="15-digit national ID number"
+                  type="text"
+                  maxLength={15}
+                  pattern="[0-9]{15}"
+                  required
+                  value={formData.nin}
+                  onChange={handleChange}
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-400 font-poppins">
+                Required: Enter your Algerian National ID (15 digits)
+              </p>
             </div>
             <div>
               <label
