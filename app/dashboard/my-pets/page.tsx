@@ -71,7 +71,7 @@ export default function MyPetsPage() {
                 </button>
               </div>
               <p className="mt-4 text-sm text-gray-500 max-w-lg">
-                Share this ID or QR code with any Vetodiag doctor to give them temporary access to all your pets' medical records.
+                Share this ID or QR code with any veterinarian to give them temporary access to all your pets' medical records.
               </p>
             </div>
           </div>

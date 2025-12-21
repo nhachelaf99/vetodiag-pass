@@ -59,12 +59,6 @@ export default function Header() {
                 >
                   Contact
                 </Link>
-                <Link
-                  href="/doctor-access"
-                  className="text-gray-400 hover:text-primary transition-colors font-medium border border-gray-700 px-3 py-1 rounded-lg hover:border-primary"
-                >
-                  Doctor Access
-                </Link>
               </nav>
             </div>
             <div className="flex items-center space-x-4">

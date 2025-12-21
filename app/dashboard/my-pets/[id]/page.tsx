@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, use } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { getPatientById, MOCK_PATIENTS } from "@/lib/mock-data/patients";
@@ -66,11 +66,14 @@ const externalResults = [
   },
 ];
 
-export default function PetProfilePage({ params }: { params: { id: string } }) {
+export default function PetProfilePage({ params }: { params: Promise<{ id: string }> }) {
+  // Unwrap the params Promise using React.use()
+  const { id } = use(params);
+  
   const [activeTab, setActiveTab] = useState("medical-history");
   const [isPassOpen, setIsPassOpen] = useState(false);
 
-  const mockPatient = getPatientById(params.id);
+  const mockPatient = getPatientById(id);
   
   // Attempt to find mock patient, otherwise fallback to creating a display object from params
   // In a real app, this would be a unified fetch
@@ -90,7 +93,7 @@ export default function PetProfilePage({ params }: { params: { id: string } }) {
     weight: "72 lbs",
     avatar:
       "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY",
-    accessCode: params.id // Use the URL param ID as the access code
+    accessCode: id // Use the URL param ID as the access code
   };
 
   return (
@@ -405,7 +408,7 @@ export default function PetProfilePage({ params }: { params: { id: string } }) {
               </div>
 
               <p className="text-gray-400 text-sm">
-                Doctors can scan this QR code or enter the ID to access {petData.name}'s medical records instantly.
+                Veterinarians can scan this QR code or enter the ID to access {petData.name}'s medical records instantly.
               </p>
             </div>
             <div className="bg-white/5 p-4 border-t border-border-dark flex justify-center">
