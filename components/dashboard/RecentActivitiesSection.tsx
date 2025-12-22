@@ -1,28 +1,23 @@
-const activities = [
-  {
-    icon: "vaccines",
-    title: "Rabies booster for Rocky",
-    subtitle: "Dr. Emily Carter",
-    time: "5 days ago",
-    linkText: "View details",
-  },
-  {
-    icon: "healing",
-    title: "Post-surgery check-up for Milo",
-    subtitle: "Dr. James Rodriguez",
-    time: "2 weeks ago",
-    linkText: "View details",
-  },
-  {
-    icon: "science",
-    title: "Lab results for Daisy are available",
-    subtitle: "Senior wellness panel",
-    time: "1 month ago",
-    linkText: "View results",
-  },
-];
+interface Activity {
+  icon: string;
+  title: string;
+  subtitle: string;
+  time: string;
+  linkText?: string;
+}
 
-export default function RecentActivitiesSection() {
+export default function RecentActivitiesSection({ activities = [] }: { activities?: Activity[] }) {
+  if (!activities || activities.length === 0) {
+      return (
+        <section className="font-inter">
+            <h3 className="text-xl font-semibold mb-4 text-white">Recent Activities</h3>
+            <div className="bg-card-dark p-6 rounded-lg border border-border-dark space-y-6 text-gray-400 text-center">
+                No recent activities found.
+            </div>
+        </section>
+      )
+  }
+
   return (
     <section className="font-inter">
       <h3 className="text-xl font-semibold mb-4 text-white">Recent Activities</h3>

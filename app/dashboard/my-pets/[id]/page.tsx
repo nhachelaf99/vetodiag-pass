@@ -1,391 +1,428 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { getPatientById, MOCK_PATIENTS } from "@/lib/mock-data/patients";
+import { supabase } from "@/lib/supabase";
 
-const medicalHistory = [
-  {
-    id: 1,
-    title: "Dental Cleaning",
-    date: "Jan 15, 2024",
-    description:
-      "Routine dental cleaning and check-up. Mild tartar buildup noted. All clear otherwise.",
-    icon: "dentistry",
-  },
-  {
-    id: 2,
-    title: "Follow-up: Skin Allergy",
-    date: "Oct 20, 2023",
-    description:
-      "Prescription for Apoquel refilled. Skin condition has improved significantly.",
-    icon: "science",
-  },
-  {
-    id: 3,
-    title: "Annual Check-up & Wellness Exam",
-    date: "May 05, 2023",
-    description:
-      "Overall health is excellent. Vaccinations administered. Discussed diet and exercise.",
-    icon: "stethoscope",
-  },
-];
+// Interfaces matching Supabase schema
+interface Patient {
+  id: string;
+  name: string;
+  species: string;
+  breed: string;
+  date_of_birth: string;
+  weight: string;
+  photo_url?: string;
+  sex?: string;
+  patient_code?: string;
+}
 
-const vaccinations = [
-  {
-    name: "Rabies",
-    nextDue: "May 05, 2026",
-    status: "Up-to-date",
-    statusColor: "bg-green-500/20 text-green-300",
-  },
-  {
-    name: "DHPP",
-    nextDue: "May 05, 2024",
-    status: "Due Soon",
-    statusColor: "bg-amber-500/20 text-amber-300",
-  },
-  {
-    name: "Bordetella",
-    nextDue: "Nov 05, 2023",
-    status: "Overdue",
-    statusColor: "bg-red-500/20 text-red-300",
-  },
-];
+interface ClinicalCase {
+  id: string;
+  visit_date: string;
+  clinical_case_type: string;
+  title?: string; // Sometimes used as title in other views
+  description?: string; // Can be mapped from notes
+  notes: string;
+  created_at: string;
+}
 
-const externalResults = [
-  {
-    id: 1,
-    title: "Blood Panel - Central Vet Clinic",
-    date: "July 22, 2023",
-  },
-  {
-    id: 2,
-    title: "X-Ray - Emergency Animal Hospital",
-    date: "March 12, 2023",
-  },
-];
+interface Vaccination {
+  id: string;
+  vaccination_name: string;
+  next_time: string; // Due date
+  created_at: string;
+}
+
+interface PatientDocument {
+  id: string;
+  title: string;
+  created_at: string;
+  file_type?: string;
+}
 
 export default function PetProfilePage({ params }: { params: Promise<{ id: string }> }) {
-  // Unwrap the params Promise using React.use()
   const { id } = use(params);
   
   const [activeTab, setActiveTab] = useState("medical-history");
   const [isPassOpen, setIsPassOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const mockPatient = getPatientById(id);
-  
-  // Attempt to find mock patient, otherwise fallback to creating a display object from params
-  // In a real app, this would be a unified fetch
-  const petData = mockPatient ? {
-    name: mockPatient.name,
-    species: mockPatient.species,
-    breed: mockPatient.breed,
-    age: mockPatient.age,
-    weight: mockPatient.weight,
-    avatar: mockPatient.photoUrl || "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY",
-    accessCode: mockPatient.id // Use internal ID as the access code
-  } : {
-    name: "Milo",
-    species: "Canine",
-    breed: "Golden Retriever",
-    age: "5 years",
-    weight: "72 lbs",
-    avatar:
-      "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY",
-    accessCode: id // Use the URL param ID as the access code
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [history, setHistory] = useState<ClinicalCase[]>([]);
+  const [vaccinations, setVaccinations] = useState<Vaccination[]>([]);
+  const [documents, setDocuments] = useState<PatientDocument[]>([]);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        setLoading(true);
+        
+        // 1. Fetch Patient Details
+        const { data: patientData, error: patientError } = await supabase
+          .from("patient")
+          .select("*")
+          .eq("id", id)
+          .single();
+
+        if (patientError) throw patientError;
+        setPatient(patientData);
+
+        // 2. Fetch Medical History (Clinical Cases)
+        const { data: historyData, error: historyError } = await supabase
+          .from("clinical_case")
+          .select("*")
+          .eq("patient_id", id)
+          .order("visit_date", { ascending: false });
+
+        if (historyError) {
+            console.error("Error fetching history:", historyError);
+        } else {
+            setHistory(historyData || []);
+        }
+
+        // 3. Fetch Vaccinations
+        const { data: vaxData, error: vaxError } = await supabase
+          .from("vaccination")
+          .select("*")
+          .eq("patient_id", id)
+          .order("next_time", { ascending: true });
+
+        if (vaxError) {
+            console.error("Error fetching vaccinations:", vaxError);
+        } else {
+            setVaccinations(vaxData || []);
+        }
+        
+        // 4. Fetch Documents (External Results)
+        // Check if table exists first or wrap in try/catch if uncertain, 
+        // but assuming 'patient_documents' from CRM schema analysis.
+        const { data: docData, error: docError } = await supabase
+          .from("patient_documents")
+          .select("*")
+          .eq("patient_id", id)
+          .order("created_at", { ascending: false });
+
+        if (docError) {
+           console.log("Documents fetch error (may be empty):", docError.message);
+        } else {
+           setDocuments(docData || []);
+        }
+
+      } catch (err: any) {
+        console.error("Error loading pet data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (id) {
+      fetchData();
+    }
+  }, [id]);
+
+  // Calculate age from DOB
+  const getAge = (dob: string) => {
+    if (!dob) return "Unknown age";
+    const birthDate = new Date(dob);
+    const today = new Date();
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    if (months < 0 || (months === 0 && today.getDate() < birthDate.getDate())) {
+      years--;
+      months += 12;
+    }
+    return years > 0 ? `${years} years` : `${months} months`;
   };
 
+  // Helper for vaccination status
+  const getVaxStatus = (nextDue: string) => {
+    const due = new Date(nextDue);
+    const today = new Date();
+    const diffTime = due.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays < 0) return { label: "Overdue", color: "bg-red-500/20 text-red-300" };
+    if (diffDays < 30) return { label: "Due Soon", color: "bg-amber-500/20 text-amber-300" };
+    return { label: "Up-to-date", color: "bg-green-500/20 text-green-300" };
+  };
+
+  // Icon helper
+  const getIconForType = (type: string) => {
+    const lower = type?.toLowerCase() || "";
+    if (lower.includes("dent")) return "dentistry";
+    if (lower.includes("surgery") || lower.includes("opér")) return "medical_services";
+    if (lower.includes("consult")) return "stethoscope";
+    return "healing";
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background-dark flex items-center justify-center">
+        <div className="text-primary animate-pulse">Loading pet profile...</div>
+      </div>
+    );
+  }
+
+  if (error || !patient) {
+    return (
+      <div className="min-h-screen bg-background-dark flex items-center justify-center">
+        <div className="text-red-400">Error: {error || "Patient not found"}</div>
+      </div>
+    );
+  }
+
   return (
-    <div className="relative flex min-h-screen w-full bg-background-dark font-display text-text-primary-dark">
-      <aside className="flex flex-col w-64 bg-surface-dark p-4 shrink-0">
-        <div className="flex flex-col gap-4 flex-grow">
-          <div className="flex items-center gap-3 mb-6">
+    <div className="flex min-h-screen w-full bg-background-dark font-display text-text-primary-dark">
+      {/* 
+          REMOVED SECONDARY SIDEBAR 
+          This page now takes full width minus the main app sidebar (layout handled).
+      */}
+
+      <main className="flex-1 p-4 md:p-8 w-full max-w-7xl mx-auto">
+        {/* Header Section */}
+        <header className="flex flex-col md:flex-row gap-6 md:gap-8 items-start md:items-center border-b border-border-dark pb-8 mb-8">
+          <div className="relative group">
             <div
-              className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10"
-              style={{
-                backgroundImage:
-                  'url("https://lh3.googleusercontent.com/aida-public/AB6AXuBLuVT5CoIegkA7tfmXMNSHbEo9TgrY6usaaTU5KY2p9l_L9idpefoavvA7OPMqFWMrmfbQ-o33DomnMDYbAM9diG1v_shaFJ7nlwc-R5ILF3BruJufelxsWmN0re55OYm9xUqXSQBb9pfZJCRQDrjyhsNWukjfjPHIpnmQ_rg2fCvj32EzfQJukCy38_LIHf927qM0saLFEW6KpKu-XRWd4foSiqyymaXg3Vu6OkvJtIDGMET3tAUDbhFEJ3Uxa5pyX4j1HJ1svu4")',
+              className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-32 w-32 md:h-40 md:w-40 shadow-lg ring-4 ring-surface-dark bg-surface-dark"
+              style={{ 
+                backgroundImage: patient.photo_url 
+                  ? `url("${patient.photo_url}")` 
+                  : 'url("https://via.placeholder.com/150?text=No+Image")' 
               }}
-            />
-            <div className="flex flex-col">
-              <h1 className="text-text-primary-dark text-base font-medium leading-normal">
-                Jane Doe
-              </h1>
-              <p className="text-text-secondary-dark text-sm font-normal leading-normal">
-                jane.doe@email.com
-              </p>
+            >
+                {!patient.photo_url && (
+                    <div className="flex items-center justify-center w-full h-full text-gray-500">
+                        <span className="material-symbols-outlined text-4xl">pets</span>
+                    </div>
+                )}
             </div>
           </div>
-          <nav className="flex flex-col gap-2">
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-primary-dark hover:bg-white/10 transition-colors"
-            >
-              <span className="material-symbols-outlined">dashboard</span>
-              <p className="text-sm font-medium leading-normal">Dashboard</p>
-            </Link>
-            <Link
-              href="/dashboard/my-pets/patients"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/10 text-text-primary-dark"
-            >
-              <span
-                className="material-symbols-outlined"
-                style={{ fontVariationSettings: "'FILL' 1" }}
-              >
-                pets
-              </span>
-              <p className="text-sm font-medium leading-normal">My Pets</p>
-            </Link>
-            <Link
-              href="/dashboard/appointments"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-primary-dark hover:bg-white/10 transition-colors"
-            >
-              <span className="material-symbols-outlined">calendar_month</span>
-              <p className="text-sm font-medium leading-normal">Appointments</p>
-            </Link>
-            <Link
-              href="/dashboard/billing"
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-primary-dark hover:bg-white/10 transition-colors"
-            >
-              <span className="material-symbols-outlined">credit_card</span>
-              <p className="text-sm font-medium leading-normal">Billing</p>
-            </Link>
-          </nav>
-        </div>
-        <div className="flex flex-col gap-1">
-          <Link
-            href="/dashboard/settings"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-primary-dark hover:bg-white/10 transition-colors"
-          >
-            <span className="material-symbols-outlined">settings</span>
-            <p className="text-sm font-medium leading-normal">Settings</p>
-          </Link>
-          <Link
-            href="/dashboard/help"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-primary-dark hover:bg-white/10 transition-colors"
-          >
-            <span className="material-symbols-outlined">help</span>
-            <p className="text-sm font-medium leading-normal">Help</p>
-          </Link>
-        </div>
-      </aside>
 
-      <main className="flex-1 p-8">
-        <div className="max-w-6xl mx-auto">
-          <header className="flex p-4 border-b border-border-dark pb-8">
-            <div className="flex w-full flex-col gap-6 md:flex-row md:justify-between md:items-center">
-              <div className="flex gap-6 items-center">
-                <div
-                  className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-32 w-32 shrink-0"
-                  style={{ backgroundImage: `url("${petData.avatar}")` }}
-                />
-                <div className="flex flex-col justify-center">
-                  <h2 className="text-4xl font-bold leading-tight tracking-tight text-white">
-                    {petData.name}
-                  </h2>
-                  <p className="text-base font-normal leading-normal mt-1 text-gray-400">
-                    Species: {petData.species}, Breed: {petData.breed}, Age: {petData.age}
-                  </p>
-                  <p className="text-base font-normal leading-normal text-gray-400">
-                    Weight: {petData.weight}
-                  </p>
+          <div className="flex-1 w-full">
+            <div className="flex flex-col md:flex-row md:justify-between gap-4">
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-2">
+                  {patient.name}
+                </h1>
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-gray-400 text-sm md:text-base">
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-xl">pets</span>
+                    {patient.species} • {patient.breed}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-xl">cake</span>
+                    {getAge(patient.date_of_birth)}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary text-xl">weight</span>
+                    {patient.weight || "N/A"}
+                  </span>
+                  {patient.sex && (
+                     <span className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary text-xl">
+                            {patient.sex === 'M' ? 'male' : 'female'}
+                        </span>
+                        {patient.sex === 'M' ? 'Male' : 'Female'}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div className="flex w-full max-w-[480px] gap-3 md:w-auto">
-                <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-surface-dark text-white text-sm font-bold leading-normal tracking-[0.015em] flex-1 md:flex-auto border border-border-dark hover:bg-white/10 transition-colors">
-                  <span className="truncate">Edit Profile</span>
-                </button>
-                <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-accent-green text-black text-sm font-bold leading-normal tracking-[0.015em] flex-1 md:flex-auto hover:bg-opacity-80 transition-opacity">
-                  <span className="truncate">Download Records</span>
+
+              {/* Action Buttons */}
+              <div className="flex flex-wrap gap-3 mt-4 md:mt-0">
+                <button className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-surface-dark border border-border-dark text-white hover:bg-white/5 transition-all font-medium min-w-[120px]">
+                  <span className="material-symbols-outlined text-xl">edit</span>
+                  Edit Profile
                 </button>
                 <button 
                   onClick={() => setIsPassOpen(true)}
-                  className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-lg h-10 px-4 bg-primary text-white text-sm font-bold leading-normal tracking-[0.015em] flex-1 md:flex-auto hover:bg-primary/80 transition-opacity gap-2"
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-black hover:bg-primary/90 transition-all font-bold min-w-[120px] shadow-lg shadow-primary/20"
                 >
-                  <span className="material-icons text-sm">qr_code</span>
-                  <span className="truncate">Share Pass</span>
+                  <span className="material-symbols-outlined text-xl">qr_code_2</span>
+                  Share Pass
                 </button>
               </div>
             </div>
-          </header>
-
-          <div className="mt-8">
-            <div className="flex border-b border-border-dark px-4 gap-8">
-              <button
-                onClick={() => setActiveTab("medical-history")}
-                className={`flex flex-col items-center justify-center border-b-[3px] pb-[13px] pt-4 transition-colors ${
-                  activeTab === "medical-history"
-                    ? "border-b-accent-green text-white"
-                    : "border-b-transparent text-gray-400 hover:border-b-border-dark hover:text-white"
-                }`}
-              >
-                <p className="text-sm font-bold leading-normal tracking-[0.015em]">
-                  Medical History
-                </p>
-              </button>
-              <button
-                onClick={() => setActiveTab("vaccinations")}
-                className={`flex flex-col items-center justify-center border-b-[3px] pb-[13px] pt-4 transition-colors ${
-                  activeTab === "vaccinations"
-                    ? "border-b-accent-green text-white"
-                    : "border-b-transparent text-gray-400 hover:border-b-border-dark hover:text-white"
-                }`}
-              >
-                <p className="text-sm font-bold leading-normal tracking-[0.015em]">
-                  Vaccinations
-                </p>
-              </button>
-              <button
-                onClick={() => setActiveTab("external-results")}
-                className={`flex flex-col items-center justify-center border-b-[3px] pb-[13px] pt-4 transition-colors ${
-                  activeTab === "external-results"
-                    ? "border-b-accent-green text-white"
-                    : "border-b-transparent text-gray-400 hover:border-b-border-dark hover:text-white"
-                }`}
-              >
-                <p className="text-sm font-bold leading-normal tracking-[0.015em]">
-                  External Results
-                </p>
-              </button>
-            </div>
           </div>
+        </header>
 
-          <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div className="lg:col-span-2">
-              {activeTab === "medical-history" && (
-                <>
-                  <h3 className="text-xl font-bold text-white px-4 mb-4">
-                    Medical History
-                  </h3>
-                  <div className="grid grid-cols-[auto_1fr] gap-x-4 px-4">
-                    {medicalHistory.map((item, index) => (
-                      <div key={item.id}>
-                        <div className="flex flex-col items-center gap-1 pt-3">
-                          <div className="flex items-center justify-center size-10 rounded-full bg-surface-dark border border-border-dark">
-                            <span className="material-symbols-outlined text-accent-green">
-                              {item.icon}
-                            </span>
-                          </div>
-                          {index < medicalHistory.length - 1 && (
-                            <div className="w-[2px] bg-border-dark h-full" />
-                          )}
-                        </div>
-                        <div className="flex flex-1 flex-col py-3 pb-8">
-                          <p className="text-white text-base font-medium leading-normal">
-                            {item.title}
-                          </p>
-                          <p className="text-gray-400 text-sm font-normal leading-normal">
-                            {item.date}
-                          </p>
-                          <p className="text-gray-400 text-sm mt-1">{item.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="space-y-8">
-              {activeTab === "vaccinations" && (
-                <div>
-                  <h3 className="text-xl font-bold text-white px-4 mb-4">Vaccinations</h3>
-                  <div className="px-4">
-                    <div className="overflow-hidden rounded-lg border border-border-dark bg-surface-dark">
-                      <table className="w-full text-left">
-                        <thead className="bg-white/5">
-                          <tr>
-                            <th className="px-4 py-3 text-white text-sm font-medium leading-normal">
-                              Vaccine
-                            </th>
-                            <th className="px-4 py-3 text-white text-sm font-medium leading-normal">
-                              Next Due
-                            </th>
-                            <th className="px-4 py-3 text-white text-sm font-medium leading-normal text-center">
-                              Status
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {vaccinations.map((vaccine, index) => (
-                            <tr
-                              key={vaccine.name}
-                              className={index > 0 ? "border-t border-t-border-dark" : ""}
-                            >
-                              <td className="h-[64px] px-4 py-2 text-white text-sm font-normal leading-normal">
-                                {vaccine.name}
-                              </td>
-                              <td className="h-[64px] px-4 py-2 text-gray-400 text-sm font-normal leading-normal">
-                                {vaccine.nextDue}
-                              </td>
-                              <td className="h-[64px] px-4 py-2 text-sm font-normal leading-normal">
-                                <div className="flex justify-center">
-                                  <span
-                                    className={`truncate inline-flex items-center justify-center rounded-full h-7 px-3 ${vaccine.statusColor} text-xs font-medium`}
-                                  >
-                                    {vaccine.status}
-                                  </span>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === "external-results" && (
-                <div>
-                  <h3 className="text-xl font-bold text-white px-4 mb-4">
-                    External Results
-                  </h3>
-                  <div className="flex flex-col gap-3 px-4">
-                    {externalResults.map((result) => (
-                      <div
-                        key={result.id}
-                        className="rounded-lg border border-border-dark bg-surface-dark overflow-hidden"
-                      >
-                        <button className="w-full flex justify-between items-center p-4 text-left">
-                          <div className="flex flex-col">
-                            <p className="text-white font-medium">{result.title}</p>
-                            <p className="text-sm text-gray-400">{result.date}</p>
-                          </div>
-                          <span className="material-symbols-outlined text-white transition-transform">
-                            expand_more
-                          </span>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+        {/* Tabs Navigation */}
+        <div className="mb-8 overflow-x-auto">
+          <div className="flex border-b border-border-dark min-w-max">
+            {[
+              { id: "medical-history", label: "Medical History" },
+              { id: "vaccinations", label: "Vaccinations" },
+              { id: "external-results", label: "External Results/Docs" },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`relative px-6 py-4 text-sm font-bold tracking-wide transition-colors ${
+                  activeTab === tab.id
+                    ? "text-white"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                {tab.label}
+                {activeTab === tab.id && (
+                  <span className="absolute bottom-0 left-0 w-full h-0.5 bg-primary rounded-t-full" />
+                )}
+              </button>
+            ))}
           </div>
         </div>
 
+        {/* Tab Content */}
+        <div className="min-h-[400px]">
+          {activeTab === "medical-history" && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">history</span>
+                Recent Consultations
+              </h3>
+              
+              {history.length === 0 ? (
+                 <div className="p-8 text-center text-gray-500 bg-surface-dark rounded-2xl border border-border-dark">
+                    No medical history recorded yet.
+                 </div>
+              ) : (
+                <div className="relative border-l-2 border-border-dark ml-4 md:ml-6 space-y-8 pl-8 md:pl-10 py-2">
+                    {history.map((item) => (
+                    <div key={item.id} className="relative">
+                        <div className="absolute -left-[49px] md:-left-[51px] top-0 bg-surface-dark border-2 border-border-dark p-2 rounded-full z-10">
+                            <span className="material-symbols-outlined text-primary text-xl">
+                                {getIconForType(item.clinical_case_type)}
+                            </span>
+                        </div>
+                        <div className="flex flex-col bg-surface-dark p-5 rounded-2xl border border-border-dark hover:border-primary/30 transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                                <h4 className="text-lg font-bold text-white capitalize">
+                                    {item.clinical_case_type || "Consultation"}
+                                </h4>
+                                <span className="text-sm font-medium text-gray-400">
+                                    {new Date(item.visit_date).toLocaleDateString(undefined, {
+                                        year: 'numeric', month: 'long', day: 'numeric'
+                                    })}
+                                </span>
+                            </div>
+                            <p className="text-gray-300 text-sm leading-relaxed whitespace-pre-line">
+                                {item.notes || "No additional notes recorded."}
+                            </p>
+                        </div>
+                    </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === "vaccinations" && (
+            <div className="space-y-6">
+              <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">vaccines</span>
+                Vaccination Schedule
+              </h3>
+              
+              <div className="bg-surface-dark rounded-2xl border border-border-dark overflow-hidden">
+                <table className="w-full text-left border-collapse">
+                  <thead className="bg-white/5">
+                    <tr>
+                      <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Vaccine</th>
+                      <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Date Administered</th>
+                      <th className="p-4 text-xs font-bold text-gray-400 uppercase tracking-wider">Next Due</th>
+                      <th className="p-4 text-xs font-bold text-center text-gray-400 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border-dark">
+                    {vaccinations.length === 0 ? (
+                        <tr>
+                            <td colSpan={4} className="p-8 text-center text-gray-500">No vaccinations recorded.</td>
+                        </tr>
+                    ) : (
+                        vaccinations.map((vax) => {
+                        const status = getVaxStatus(vax.next_time);
+                        return (
+                            <tr key={vax.id} className="hover:bg-white/5 transition-colors">
+                            <td className="p-4 text-white font-medium">{vax.vaccination_name}</td>
+                            <td className="p-4 text-gray-400 text-sm">
+                                {new Date(vax.created_at).toLocaleDateString()}
+                            </td>
+                            <td className="p-4 text-gray-400 text-sm">
+                                {new Date(vax.next_time).toLocaleDateString()}
+                            </td>
+                            <td className="p-4 text-center">
+                                <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${status.color}`}>
+                                {status.label}
+                                </span>
+                            </td>
+                            </tr>
+                        );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "external-results" && (
+             <div className="space-y-6">
+                <h3 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">description</span>
+                    Documents & Results
+                </h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {documents.length === 0 ? (
+                        <div className="col-span-full p-8 text-center text-gray-500 bg-surface-dark rounded-2xl border border-border-dark">
+                            No documents found.
+                        </div>
+                    ) : (
+                        documents.map((doc) => (
+                            <div key={doc.id} className="bg-surface-dark p-5 rounded-2xl border border-border-dark hover:border-primary/50 transition-all group cursor-pointer">
+                                <div className="flex items-start justify-between mb-4">
+                                    <div className="bg-background-dark p-3 rounded-lg text-primary group-hover:bg-primary group-hover:text-black transition-colors">
+                                        <span className="material-symbols-outlined text-2xl">
+                                            {doc.file_type?.includes('image') ? 'image' : 'picture_as_pdf'}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-gray-500">
+                                        {new Date(doc.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <h4 className="text-white font-bold mb-1 truncate">{doc.title}</h4>
+                                <p className="text-gray-400 text-sm">View Document</p>
+                            </div>
+                        ))
+                    )}
+                </div>
+             </div>
+          )}
+        </div>
       </main>
 
       {/* Patient Pass Modal */}
-      {isPassOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-surface-dark border border-border-dark rounded-2xl max-w-md w-full overflow-hidden shadow-2xl transform transition-all">
-            <div className="p-6 text-center">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-white">Patient Pass</h3>
-                <button 
+      {isPassOpen && patient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-surface-dark border border-border-dark rounded-3xl max-w-sm w-full overflow-hidden shadow-2xl scale-100 transform transition-all">
+            <div className="p-8 text-center relative">
+               <button 
                   onClick={() => setIsPassOpen(false)}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="absolute top-4 right-4 p-2 text-gray-400 hover:text-white transition-colors"
                 >
-                  <span className="material-icons">close</span>
+                  <span className="material-symbols-outlined">close</span>
                 </button>
-              </div>
+
+              <h3 className="text-2xl font-bold text-white mb-2">Patient Pass</h3>
+              <p className="text-gray-400 text-sm mb-6">Scan to access medical records</p>
               
-              <div className="bg-white p-4 rounded-xl inline-block mb-6 shadow-inner">
+              <div className="bg-white p-4 rounded-2xl inline-block mb-6 shadow-inner mx-auto">
                 <Image
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${petData.accessCode}`}
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${patient.patient_code || patient.id}`}
                   alt="Patient QR Code"
                   width={200}
                   height={200}
@@ -394,30 +431,26 @@ export default function PetProfilePage({ params }: { params: Promise<{ id: strin
                 />
               </div>
 
-              <div className="bg-background-dark/50 rounded-xl p-4 border border-border-dark mb-6">
-                <p className="text-sm text-gray-400 uppercase tracking-wider mb-2">Patient Access ID</p>
+              <div className="bg-background-dark rounded-xl p-4 border border-border-dark mb-4">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-2">Access ID</p>
                 <div className="flex items-center justify-center gap-3">
-                  <span className="text-2xl font-mono font-bold text-primary tracking-widest">{petData.accessCode}</span>
+                  <span className="text-2xl font-mono font-bold text-primary tracking-widest">
+                    {patient.patient_code || patient.id.slice(0, 8)}
+                  </span>
                   <button 
-                    onClick={() => navigator.clipboard.writeText(petData.accessCode)}
-                    className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors"
+                    onClick={() => navigator.clipboard.writeText(patient.patient_code || patient.id)}
+                    className="p-1.5 hover:bg-white/10 rounded-md text-gray-400 hover:text-white transition-colors"
                   >
-                    <span className="material-icons">content_copy</span>
+                    <span className="material-symbols-outlined text-sm">content_copy</span>
                   </button>
                 </div>
               </div>
-
-              <p className="text-gray-400 text-sm">
-                Veterinarians can scan this QR code or enter the ID to access {petData.name}'s medical records instantly.
-              </p>
             </div>
-            <div className="bg-white/5 p-4 border-t border-border-dark flex justify-center">
-              <button
-                onClick={() => setIsPassOpen(false)}
-                className="text-white hover:text-primary transition-colors font-medium"
-              >
-                Close
-              </button>
+            
+            <div className="bg-primary/5 p-4 border-t border-border-dark text-center">
+                <p className="text-xs text-primary/70 font-medium">
+                    Valid for VetoDiag partner clinics
+                </p>
             </div>
           </div>
         </div>
@@ -425,4 +458,3 @@ export default function PetProfilePage({ params }: { params: Promise<{ id: strin
     </div>
   );
 }
-

@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Header from "./Header";
 
 const authRoutes = ["/login"];
-const dashboardRoutes = ["/dashboard", "/dashboard/appointments", "/dashboard/billing", "/dashboard/documents", "/dashboard/scan-qr", "/dashboard/settings"];
+const dashboardRoutes = ["/dashboard", "/dashboard/appointments", "/dashboard/billing", "/dashboard/documents", "/dashboard/scan-qr", "/dashboard/profile"];
 
 export default function ConditionalHeader() {
   const pathname = usePathname();
@@ -19,9 +19,8 @@ export default function ConditionalHeader() {
 
 
   // Show header ONLY for messages routes (currently), hide for other dashboard routes including my-pets which now uses sidebar
-  if (isAuthRoute || (isDashboardRoute) || (isMyPetsRoute)) {
-     if (isMessagesRoute) return <Header />; // Exception: Messages still uses top header? User said "same header/sidebar as OTHER pages", implying my-pets should be standard.
-     return null;
+  if (isAuthRoute || isDashboardRoute || isMyPetsRoute || isMessagesRoute) {
+    return null;
   }
 
   return <Header />;

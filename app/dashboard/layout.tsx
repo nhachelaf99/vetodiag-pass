@@ -14,9 +14,7 @@ export default function DashboardLayout({
 
   // My-pets routes should now use the standard Sidebar layout, so we remove it from the exception.
   // Only messages route currently uses Header (from ConditionalHeader)
-  if (isMessagesRoute) {
-    return <>{children}</>;
-  }
+
 
   return (
     <div className="flex h-screen bg-background-dark">

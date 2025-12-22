@@ -1,22 +1,25 @@
-const appointments = [
-  {
-    date: "Friday, 9:00 AM",
-    title: "Wellness exam for Rocky",
-    subtitle: "with Dr. Emily Carter",
-  },
-  {
-    date: "Nov 5, 3:30 PM",
-    title: "Grooming for Milo",
-    subtitle: "with The Grooming Spot",
-  },
-  {
-    date: "Nov 18, 11:00 AM",
-    title: "Dental check-up for Daisy",
-    subtitle: "with Dr. James Rodriguez",
-  },
-];
+interface Appointment {
+    date: string;
+    title: string;
+    subtitle: string;
+}
 
-export default function UpcomingAppointmentsSection() {
+export default function UpcomingAppointmentsSection({ appointments = [] }: { appointments?: Appointment[] }) {
+  if (!appointments || appointments.length === 0) {
+      return (
+        <section className="font-inter">
+            <h3 className="text-xl font-semibold mb-4 text-white">
+                Upcoming Appointments
+            </h3>
+            <div className="bg-card-dark p-6 rounded-lg border border-border-dark space-y-4 text-gray-400 text-center">
+                No upcoming appointments.
+            </div>
+             <button className="w-full mt-2 bg-primary text-white font-semibold py-2 px-4 rounded-lg hover:bg-primary/90 transition-colors hidden">
+                Schedule a new appointment
+            </button>
+        </section>
+      )
+  }
   return (
     <section className="font-inter">
       <h3 className="text-xl font-semibold mb-4 text-white">

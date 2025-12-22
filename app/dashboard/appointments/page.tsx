@@ -201,9 +201,12 @@ export default function AppointmentsPage() {
                 <button className="px-4 py-2 text-sm text-gray-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
                   Reschedule
                 </button>
-                <button className="px-4 py-2 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors">
+                <Link 
+                  href={`/dashboard/appointments/${appointment.id}`}
+                  className="px-4 py-2 text-sm text-primary hover:bg-primary/10 rounded-lg transition-colors"
+                >
                   Details
-                </button>
+                </Link>
               </div>
             </div>
           ))

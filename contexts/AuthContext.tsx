@@ -77,9 +77,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
   
             console.log("Supabase session found:", session.user.email);
-            const fullName = userData 
-                ? `${userData.first_name || ''} ${userData.last_name || ''}`.trim() 
-                : session.user.user_metadata.full_name;
+            
+            let fullName = "";
+            if (userData?.first_name || userData?.last_name) {
+                fullName = `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
+            } else {
+                fullName = session.user.user_metadata.full_name || "";
+            }
 
             const userInfo = {
               name: fullName || session.user.email || "",

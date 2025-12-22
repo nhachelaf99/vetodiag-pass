@@ -66,28 +66,22 @@ export default function Sidebar() {
       </div>
       <div className="p-4 mt-auto flex flex-col gap-1">
         <Link
-          href="/dashboard/settings"
+          href="/dashboard/profile"
           className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
-            pathname === "/dashboard/settings"
+            pathname === "/dashboard/profile"
               ? "bg-white/10 text-white font-medium"
               : "hover:bg-white/10 text-gray-300"
           }`}
         >
           <span 
             className="material-icons"
-            style={pathname === "/dashboard/settings" ? { } : {}}
+            style={pathname === "/dashboard/profile" ? { } : {}}
           >
-            settings
+            person
           </span>
-          <span className="text-sm font-medium">Settings</span>
+          <span className="text-sm font-medium">Profile</span>
         </Link>
-        <Link
-          href="/help"
-          className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-gray-300 transition-colors"
-        >
-          <span className="material-icons">help_outline</span>
-          <span className="text-sm font-medium">Help</span>
-        </Link>
+
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-white/10 text-gray-300 w-full transition-colors mt-2"
