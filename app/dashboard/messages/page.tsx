@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { Send, User as UserIcon, MessageSquare, Plus } from "lucide-react";
 
-interface Message {
+interface ChatMessage {
   id: string;
   sender_id: string;
   receiver_id: string;
@@ -19,391 +22,436 @@ interface UserProfile {
   email?: string;
   avatar_url?: string;
   role?: string;
+  full_name?: string; 
 }
 
 interface Conversation {
   otherUser: UserProfile;
-  lastMessage: Message;
+  lastMessage: ChatMessage;
   unreadCount: number;
 }
 
 export default function MessagesPage() {
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { user } = useAuth();
+  const currentUser = user ? { id: user.clientId, clinic_id: user.clinicId, clinic_name: user.clinicName } : null;
+  
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(true);
+  
+  // Cache for user profiles (doctors/workers)
+  const [profilesMap, setProfilesMap] = useState<Map<string, UserProfile>>(new Map());
+  const [linkedClientId, setLinkedClientId] = useState<string | null>(null);
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 1. Get Current User
-  useEffect(() => {
-    const getUser = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-            setCurrentUser(session.user.id);
-        }
-    };
-    getUser();
-  }, []);
-
-  // 2. Fetch Conversations (Grouped Messages)
-  useEffect(() => {
-    if (!currentUser) return;
-
-    const fetchConversations = async () => {
-      try {
-        setLoading(true);
-        // 1. Fetch raw messages
-        const { data: msgs, error: msgError } = await supabase
-          .from("messages")
-          .select("*")
-          .or(`sender_id.eq.${currentUser},receiver_id.eq.${currentUser}`)
-          .order("created_at", { ascending: false });
-
-        if (msgError) {
-             console.error("Error fetching messages:", msgError);
-             throw msgError;
-        }
-
-        // 2. Identify unique User IDs involved (excluding current user)
-        const userIds = new Set<string>();
-        msgs?.forEach((m: any) => {
-             if (m.sender_id !== currentUser) userIds.add(m.sender_id);
-             if (m.receiver_id !== currentUser) userIds.add(m.receiver_id);
-        });
-        const uniqueIds = Array.from(userIds);
-
-        // 3. Fetch Profiles (Try both 'users' and 'client' tables)
-        const role = 'unknown'; // In mixed chat we don't know roles easily without checking both
-        let profilesMap = new Map<string, UserProfile>();
-
-        if (uniqueIds.length > 0) {
-            // A. Fetch from 'users'
-            const { data: usersData } = await supabase
-                .from('users')
-                .select('id, first_name, last_name') 
-                .in('id', uniqueIds);
-            
-            usersData?.forEach((u: any) => {
-                profilesMap.set(u.id, {
-                    id: u.id,
-                    first_name: u.first_name,
-                    last_name: u.last_name,
-                    avatar_url: undefined 
-                });
-            });
-
-            // B. Fetch from 'client'
-            const { data: clientData } = await supabase
-                .from('client')
-                .select('id, full_name') 
-                .in('id', uniqueIds);
-
-             clientData?.forEach((c: any) => {
-                if (!profilesMap.has(c.id)) {
-                    const [first, ...rest] = (c.full_name || "Unknown User").split(" ");
-                    profilesMap.set(c.id, {
-                        id: c.id,
-                        first_name: first,
-                        last_name: rest.join(" "),
-                    });
-                }
-            });
-        }
-
-        // 4. Group Messages into Conversations
-        const convMap = new Map<string, Conversation>();
-        
-        msgs?.forEach((msg: any) => {
-          const isSender = msg.sender_id === currentUser;
-          const otherId = isSender ? msg.receiver_id : msg.sender_id;
-          const otherProfile = profilesMap.get(otherId);
-
-          const profile = otherProfile || { 
-              id: otherId, 
-              first_name: "Unknown", 
-              last_name: "User" 
-          };
-
-          if (!convMap.has(otherId)) {
-            convMap.set(otherId, {
-              otherUser: profile,
-              lastMessage: {
-                id: msg.id,
-                sender_id: msg.sender_id,
-                receiver_id: msg.receiver_id,
-                content: msg.content,
-                created_at: msg.created_at,
-                is_read: msg.is_read
-              },
-              unreadCount: 0
-            });
-          }
-          
-          if (!isSender && !msg.is_read) {
-             const conv = convMap.get(otherId)!;
-             conv.unreadCount++;
-          }
-        });
-
-        setConversations(Array.from(convMap.values()));
-      } catch (err: any) {
-        console.error("Error in conversation logic:", err?.message || err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchConversations();
-
-    fetchConversations();
+  // 1. Fetch ALL messages for this client (Shared Inbox Pattern)
+  const fetchMessages = async () => {
+    if (!currentUser?.id) return;
     
-    // Subscribe to new messages (simplified)
-    const channel = supabase
-      .channel('public:messages')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-          fetchConversations(); // Refresh list on new message
-      })
-      .subscribe();
+    setLoading(true);
+    
+    try {
+      // A. Resolve Linked Client ID (if not already found)
+      let currentLinkedId = linkedClientId;
+      if (!currentLinkedId && user?.email) {
+        try {
+          const { data: clientData } = await supabase
+            .from('client')
+            .select('id')
+            .eq('email', user.email)
+            .maybeSingle();
+          
+          if (clientData) {
+            currentLinkedId = clientData.id;
+            setLinkedClientId(clientData.id);
+          }
+        } catch (clientLookupErr) {
+          console.warn("[Messages] Could not resolve linked client:", clientLookupErr);
+        }
+      }
 
-    return () => {
-        supabase.removeChannel(channel);
-    };
-  }, [currentUser]);
-
-  // 3. Fetch Messages for Active Conversation
-  useEffect(() => {
-    if (!currentUser || !activeConvId) return;
-
-    const fetchMessages = async () => {
-      const { data, error } = await supabase
+      // B. Build OR query for BOTH Auth ID and Linked Client ID
+      const myIds = [currentUser.id];
+      if (currentLinkedId) myIds.push(currentLinkedId);
+      const idString = myIds.join(',');
+      
+      const { data: msgs, error: msgError } = await supabase
         .from("messages")
         .select("*")
-        .or(`and(sender_id.eq.${currentUser},receiver_id.eq.${activeConvId}),and(sender_id.eq.${activeConvId},receiver_id.eq.${currentUser})`)
+        .or(`sender_id.in.(${idString}),receiver_id.in.(${idString})`)
         .order("created_at", { ascending: true });
 
-      if (!error && data) {
-        setMessages(data);
-        // Mark as read
-        const unreadIds = data.filter(m => m.receiver_id === currentUser && !m.is_read).map(m => m.id);
-        if (unreadIds.length > 0) {
-             await supabase.from("messages").update({ is_read: true }).in("id", unreadIds);
+      if (msgError) {
+        console.warn("[Messages] Could not fetch messages:", msgError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!msgs || msgs.length === 0) {
+        setMessages([]);
+        setLoading(false);
+        return;
+      }
+
+      // Identify all unique other participants (Staff)
+      const otherUserIds = new Set<string>();
+      msgs.forEach((m: any) => {
+        if (!myIds.includes(m.sender_id)) otherUserIds.add(m.sender_id);
+      });
+      
+      // Fetch profiles if we have unknown IDs (GRACEFUL - do not throw)
+      const unknownIds = Array.from(otherUserIds).filter(id => !profilesMap.has(id));
+      
+      if (unknownIds.length > 0) {
+        try {
+          const { data: usersData, error: usersError } = await supabase
+            .from('users')
+            .select('id, first_name, last_name, role')
+            .in('id', unknownIds);
+          
+          if (!usersError && usersData) {
+            setProfilesMap(prev => {
+              const newMap = new Map(prev);
+              usersData.forEach((u: any) => {
+                newMap.set(u.id, { 
+                  id: u.id, 
+                  first_name: u.first_name || "Membre", 
+                  last_name: u.last_name || "", 
+                  role: u.role,
+                  full_name: `${u.first_name || 'Membre'} ${u.last_name || ''}`.trim()
+                });
+              });
+              return newMap;
+            });
+          } else if (usersError) {
+            console.warn("[Messages] Users table access issue (expected if RLS not configured):", usersError.code);
+            // Add fallback profiles for unknown IDs
+            setProfilesMap(prev => {
+              const newMap = new Map(prev);
+              unknownIds.forEach(id => {
+                if (!newMap.has(id)) {
+                  newMap.set(id, { 
+                    id, 
+                    first_name: "Membre", 
+                    last_name: "Clinique",
+                    full_name: "Membre de la clinique"
+                  });
+                }
+              });
+              return newMap;
+            });
+          }
+        } catch (userFetchErr) {
+          console.warn("[Messages] Failed to fetch user profiles:", userFetchErr);
+          // Add fallback profiles
+          setProfilesMap(prev => {
+            const newMap = new Map(prev);
+            unknownIds.forEach(id => {
+              if (!newMap.has(id)) {
+                newMap.set(id, { 
+                  id, 
+                  first_name: "Membre", 
+                  last_name: "Clinique",
+                  full_name: "Membre de la clinique"
+                });
+              }
+            });
+            return newMap;
+          });
         }
       }
-    };
 
-    fetchMessages();
-    
-    // Subscribe to specific conversation messages
-    const channel = supabase
-      .channel(`chat:${activeConvId}`)
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'messages',
-        filter: `sender_id=eq.${activeConvId}` 
-      }, payload => {
-         setMessages(prev => [...prev, payload.new as Message]);
-      })
-      .subscribe();
-
-      return () => { supabase.removeChannel(channel); }
-
-  }, [currentUser, activeConvId]);
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-    }
-  }, [messages]);
-
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !currentUser || !activeConvId) return;
-
-    const msgContent = newMessage.trim();
-    setNewMessage(""); // Optimistic clear
-
-    const { error } = await supabase
-      .from("messages")
-      .insert({
-        sender_id: currentUser,
-        receiver_id: activeConvId,
-        content: msgContent,
-        is_read: false
-      });
-
-    if (error) {
-      console.error("Error sending message:", error);
-      // Ideally show error toast
-    } else {
-        // Optimistic update
-        const fakeMsg: Message = {
-            id: Date.now().toString(),
-            sender_id: currentUser,
-            receiver_id: activeConvId,
-            content: msgContent,
-            created_at: new Date().toISOString(),
-            is_read: false
-        };
-        setMessages(prev => [...prev, fakeMsg]);
+      setMessages(msgs);
+    } catch (err: any) {
+      // This should only trigger for truly unexpected errors now
+      console.error("[Messages] Unexpected error in fetchMessages:", err?.message || err);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const activeConv = conversations.find(c => c.otherUser.id === activeConvId);
+  useEffect(() => {
+    if (currentUser?.id) {
+        fetchMessages();
+
+        // Subscribe to NEW messages
+        const channel = supabase
+        .channel('public:messages_shared')
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'messages'
+        }, (payload: any) => {
+            // Check if message is Relevant
+            // Relevant if: Receiver is Me/Linked OR Sender is Me/Linked
+            const myIds = [currentUser.id];
+            if (linkedClientId) myIds.push(linkedClientId);
+
+            const isForMe = myIds.includes(payload.new.receiver_id);
+            const isFromMe = myIds.includes(payload.new.sender_id);
+
+            if (isForMe || isFromMe) {
+                // If from 'other', check profile
+                if (!isFromMe && !profilesMap.has(payload.new.sender_id)) {
+                     fetchMessages();
+                } else {
+                    setMessages(prev => [...prev, payload.new as ChatMessage]);
+                }
+            }
+        })
+        .subscribe();
+
+        return () => { supabase.removeChannel(channel); };
+    }
+  }, [currentUser?.id, linkedClientId]); // Add linkedClientId dependency
+
+  // Auto-scroll
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg(null);
+    console.log("Send clicked. User:", currentUser?.id, "Message:", newMessage);
+
+    if (!newMessage.trim()) return;
+    if (!currentUser?.id) {
+        console.error("No current user ID");
+        setErrorMsg("Erreur session utilisateur. Veuillez recharger.");
+        return;
+    }
+
+    let targetId = null;
+
+    // A. Try last received message sender to reply in thread
+    const lastIncoming = [...messages].reverse().find(m => m.sender_id !== currentUser.id);
+    if (lastIncoming) {
+        targetId = lastIncoming.sender_id;
+    } else {
+        // B. New chat: Find ANY clinic staff (Anchor) - prioritizing doctor
+        try {
+            let clinicId = currentUser.clinic_id;
+            // Fallback fetch if missing in context
+            if (!clinicId) {
+                console.log("Fetching clinic_id from client table...");
+                const { data, error: clientErr } = await supabase.from('client').select('clinic_id').eq('id', currentUser.id).single();
+                if (clientErr) console.error("Client table fetch error:", clientErr);
+                clinicId = data?.clinic_id;
+            }
+            
+            if (clinicId) {
+                 console.log("Searching for doctor in clinic:", clinicId);
+                 // Try to find a doctor
+                 let { data: staffData, error: distErr } = await supabase
+                    .from('users')
+                    .select('id')
+                    .eq('clinic_id', clinicId)
+                    .eq('role', 'doctor')
+                    .limit(1)
+                    .maybeSingle();
+
+                 if (distErr) console.error("Doctor lookup error:", distErr);
+
+                 // If no doctor found, try ANY user in that clinic
+                 if (!staffData) {
+                    console.log("No doctor found, looking for any staff...");
+                    const { data: anyStaff, error: staffErr } = await supabase
+                      .from('users')
+                      .select('id')
+                      .eq('clinic_id', clinicId)
+                      .limit(1)
+                      .maybeSingle();
+                    
+                    if (staffErr) console.error("Staff lookup error:", staffErr);
+                    staffData = anyStaff;
+                 }
+
+                 targetId = staffData?.id;
+            } else {
+                console.warn("No clinic ID found for user.");
+            }
+        } catch (e) { 
+            console.error("Error finding target:", e); 
+        }
+    }
+
+    if (!targetId) {
+        console.warn("No target ID found. Message insert would fail.");
+        setErrorMsg("Impossible d'envoyer : aucun vétérinaire trouvé (Problème de permissions probable).");
+        return;
+    }
+
+    const msgContent = newMessage.trim();
+    setNewMessage(""); 
+
+    // Optimistic
+    const fakeMsg: ChatMessage = {
+        id: Date.now().toString(),
+        sender_id: currentUser.id,
+        receiver_id: targetId,
+        content: msgContent,
+        created_at: new Date().toISOString(),
+        is_read: false
+    };
+    setMessages(prev => [...prev, fakeMsg]);
+
+    const { error } = await supabase.from("messages").insert({
+        sender_id: currentUser.id,
+        receiver_id: targetId,
+        content: msgContent,
+        is_read: false
+    });
+
+    if (error) {
+        console.error("Error sending message:", error);
+        setErrorMsg("Échec de l'envoi du message.");
+    }
+  };
+
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.16))] bg-background-dark font-display overflow-hidden">
-      {/* 
-          REMOVED HEADER as requested.
-          Layout is Sidebar (Conversations) | Chat Area 
-      */}
+    <div className="flex h-[calc(100vh-theme(spacing.16))] bg-[#0a0f0a] border border-gray-800 rounded-2xl overflow-hidden shadow-2xl m-4">
+      {/* Sidebar - Just one item: My Clinic */}
+      <aside className="w-80 border-r border-gray-800 bg-[#0f1419] flex flex-col hidden md:flex">
+          <div className="p-4 border-b border-gray-800">
+               <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-[#00ff88]" />
+                    Messagerie
+                </h2>
+          </div>
+          <div className="flex-1 p-2">
+              <div className="bg-[#00ff88]/10 border border-[#00ff88]/20 rounded-xl p-4 cursor-default">
+                  <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center">
+                           <span className="text-xl">🏥</span>
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-white">Ma Clinique</h3>
+                          <p className="text-xs text-[#00ff88]">
+                              {currentUser?.clinic_name || "Support Vétérinaire"}
+                          </p>
+                      </div>
+                  </div>
 
-      {/* Conversations Sidebar */}
-      <aside className="w-80 border-r border-border-dark flex flex-col bg-surface-dark">
-        <div className="p-4 border-b border-border-dark flex justify-between items-center">
-          <h2 className="text-xl font-bold text-white">Messages</h2>
-          {/* <button className="text-primary hover:text-white"><span className="material-symbols-outlined">edit_square</span></button> */}
-        </div>
-        
-        <div className="flex-1 overflow-y-auto">
-          {loading && conversations.length === 0 ? (
-             <div className="p-4 text-gray-500 text-center">Loading conversations...</div>
-          ) : conversations.length === 0 ? (
-             <div className="p-4 text-gray-500 text-center">No conversations yet.</div>
-          ) : (
-            <div className="flex flex-col">
-              {conversations.map((conv) => (
-                <button
-                  key={conv.otherUser.id}
-                  onClick={() => setActiveConvId(conv.otherUser.id)}
-                  className={`flex items-center gap-4 p-4 hover:bg-white/5 transition-colors border-b border-border-dark text-left ${
-                    activeConvId === conv.otherUser.id ? "bg-white/10" : ""
-                  }`}
-                >
-                  <div className="relative">
-                    <div
-                      className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-12 bg-gray-700"
-                      style={{
-                        backgroundImage: conv.otherUser.avatar_url ? `url("${conv.otherUser.avatar_url}")` : "none",
-                      }}
-                    >
-                         {!conv.otherUser.avatar_url && (
-                             <span className="flex items-center justify-center h-full w-full text-white text-lg font-bold">
-                                 {conv.otherUser.first_name?.[0]}{conv.otherUser.last_name?.[0]}
-                             </span>
-                         )}
-                    </div>
-                    {conv.unreadCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-xs font-bold text-black ring-2 ring-surface-dark">
-                        {conv.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
-                      <h3 className="font-bold text-white truncate">
-                        {conv.otherUser.first_name} {conv.otherUser.last_name}
-                      </h3>
-                      <span className="text-xs text-gray-500 shrink-0 ml-2">
-                        {new Date(conv.lastMessage.created_at).toLocaleDateString(undefined, {weekday: 'short'})}
-                      </span>
-                    </div>
-                    <p className={`text-sm truncate ${conv.unreadCount > 0 ? "text-white font-medium" : "text-gray-500"}`}>
-                      {conv.lastMessage.sender_id === currentUser ? "You: " : ""}{conv.lastMessage.content}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+          </div>
       </aside>
 
       {/* Chat Area */}
-      <section className="flex-1 flex flex-col bg-background-dark">
-        {activeConv ? (
-          <>
-            <header className="flex items-center p-4 border-b border-border-dark bg-surface-dark/50 backdrop-blur-md sticky top-0 z-10">
+      <section className="flex-1 flex flex-col bg-[#0a0f0a]">
+            {/* ... (Header code remains unchanged) ... */}
+            <header className="flex items-center p-4 border-b border-gray-800 bg-[#0f1419]/50 backdrop-blur-sm sticky top-0 z-10">
               <div className="flex items-center gap-3">
-                 <div
-                      className="bg-center bg-no-repeat aspect-square bg-cover rounded-full size-10 bg-gray-700"
-                      style={{
-                        backgroundImage: activeConv.otherUser.avatar_url ? `url("${activeConv.otherUser.avatar_url}")` : "none",
-                      }}
-                 >
-                     {!activeConv.otherUser.avatar_url && (
-                        <span className="flex items-center justify-center h-full w-full text-white font-bold">
-                            {activeConv.otherUser.first_name?.[0]}
-                        </span>
-                     )}
+                 <div className="w-10 h-10 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center overflow-hidden">
+                     <span className="text-[#00ff88] font-bold text-lg">🏥</span>
                  </div>
                 <div>
-                  <h2 className="font-bold text-lg text-white">
-                    {activeConv.otherUser.first_name} {activeConv.otherUser.last_name}
+                  <h2 className="font-bold text-gray-200">
+                    {currentUser?.clinic_name || "Ma Clinique"}
                   </h2>
-                  <p className="text-xs text-gray-400">Online</p>
+                  <p className="text-xs text-green-500 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                    Support disponible
+                  </p>
                 </div>
               </div>
             </header>
 
+            {/* Messages List */}
             <div 
                 ref={chatContainerRef}
-                className="flex-1 p-6 overflow-y-auto space-y-4 scroll-smooth"
+                className="flex-1 p-6 overflow-y-auto space-y-6 custom-scrollbar"
             >
-              {messages.map((msg) => {
-                const isMe = msg.sender_id === currentUser;
+              {loading && <div className="text-center text-gray-500 text-sm">Chargement...</div>}
+              
+              {!loading && messages.length === 0 && (
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500 space-y-4">
+                      <MessageSquare className="w-12 h-12 opacity-20" />
+                      <p>Posez votre première question à la clinique !</p>
+                  </div>
+              )}
+
+              {messages.map((msg, index) => {
+                const isMe = msg.sender_id === currentUser?.id;
+                const senderProfile = !isMe ? profilesMap.get(msg.sender_id) : null;
+                const showAvatar = !isMe; 
+                
                 return (
                     <div
                     key={msg.id}
-                    className={`flex items-end gap-3 ${isMe ? "justify-end" : "justify-start"}`}
+                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
                     >
-                    {!isMe && (
-                        <div className="size-8 rounded-full bg-gray-700 mb-1 overflow-hidden"> 
-                            {/* Avatar placeholder */}
+                        {!isMe && (
+                            <span className="text-[10px] text-gray-400 mb-1 ml-12">
+                                {senderProfile?.full_name || "Membre de la clinique"}
+                                {senderProfile?.role === 'doctor' && " (Vétérinaire)"}
+                            </span>
+                        )}
+
+                        <div className={`flex items-end gap-3 max-w-[80%] ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                            {/* Avatar */}
+                            <div className="shrink-0 size-8">
+                                {showAvatar ? (
+                                    <div className="w-full h-full rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-xs font-bold text-[#00ff88] overflow-hidden">
+                                        {senderProfile?.avatar_url ? (
+                                            <img src={senderProfile.avatar_url} alt="" className="w-full h-full object-cover" />
+                                        ) : (
+                                            senderProfile?.first_name?.[0] || "C"
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="w-8" /> 
+                                )}
+                            </div>
+
+                            {/* Bubble */}
+                            <div
+                                className={`p-3 rounded-2xl ${
+                                isMe
+                                    ? "bg-[#00ff88]/20 border border-[#00ff88]/30 text-white rounded-br-none"
+                                    : "bg-gray-800/50 border border-gray-700 text-gray-200 rounded-bl-none"
+                                }`}
+                            >
+                                <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                            </div>
                         </div>
-                    )}
-                    <div
-                        className={`max-w-[70%] p-3 rounded-2xl ${
-                        isMe
-                            ? "bg-primary text-black rounded-br-none"
-                            : "bg-surface-dark border border-border-dark text-white rounded-bl-none"
-                        }`}
-                    >
-                        <p className="text-sm leading-relaxed">{msg.content}</p>
-                    </div>
+                        
+                        <span className={`text-[10px] text-gray-600 mt-1 ${isMe ? "mr-12" : "ml-12"}`}>
+                             {new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
                     </div>
                 );
               })}
+              <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 bg-surface-dark border-t border-border-dark">
+            {/* Input Area */}
+            <div className="p-4 bg-[#0f1419] border-t border-gray-800">
               <form onSubmit={handleSend} className="flex items-center gap-3">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message..."
-                  className="flex-1 bg-background-dark border border-border-dark rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all outline-none"
+                  placeholder="Écrivez votre message à la clinique..."
+                  className="flex-1 bg-[#0a0f0a] border border-gray-700 rounded-xl px-4 py-3 text-white placeholder:text-gray-500 focus:border-[#00ff88] focus:ring-1 focus:ring-[#00ff88] transition-all outline-none"
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="flex items-center justify-center size-12 rounded-xl bg-primary text-black hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  className="flex items-center justify-center size-12 rounded-xl bg-[#00ff88] text-black hover:bg-[#00cc6a] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                  <span className="material-symbols-outlined">send</span>
+                  <Send className="w-5 h-5" />
                 </button>
               </form>
+              {errorMsg && (
+                  <p className="text-red-500 text-xs mt-2 text-center">{errorMsg}</p>
+              )}
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-500">
-            <span className="material-symbols-outlined text-6xl mb-4 opacity-20">chat_bubble</span>
-            <p>Select a conversation to start chatting</p>
-          </div>
-        )}
       </section>
     </div>
   );
