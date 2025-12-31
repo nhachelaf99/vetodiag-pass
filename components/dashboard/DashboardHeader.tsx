@@ -32,17 +32,6 @@ export default function DashboardHeader() {
         </p>
       </div>
       <div className="flex items-center gap-4">
-        <Link
-          href="/dashboard/scan-qr"
-          className="bg-primary text-white font-semibold p-2 rounded-lg hover:bg-primary/90 transition-colors flex items-center justify-center"
-          title="Scan QR Code"
-        >
-          <span className="material-icons">qr_code_scanner</span>
-        </Link>
-        <button className="relative p-2 rounded-full hover:bg-gray-800">
-          <span className="material-icons text-gray-300">notifications</span>
-          <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-primary ring-2 ring-background-dark"></span>
-        </button>
         <div className="relative">
           <button 
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -58,11 +47,6 @@ export default function DashboardHeader() {
             />
             <div className="min-w-0 text-left hidden md:block">
               <p className="font-semibold text-sm text-white truncate max-w-[150px]" title={user?.name}>{user?.name || "User"}</p>
-              <p className="text-xs text-gray-400 truncate max-w-[150px]" title={user?.userCode}>
-                 <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">
-                    {user?.userCode || ""}
-                 </span>
-              </p>
             </div>
             <span className="material-icons text-gray-400">expand_more</span>
           </button>
@@ -71,11 +55,6 @@ export default function DashboardHeader() {
             <div className="absolute right-0 mt-2 w-56 bg-surface-dark border border-border-dark rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2">
               <div className="px-4 py-3 border-b border-border-dark md:hidden">
                 <p className="font-semibold text-sm text-white truncate">{user?.name || "User"}</p>
-                 <p className="text-xs text-gray-400 truncate mt-1">
-                    <span className="bg-primary/20 text-primary px-2 py-0.5 rounded text-[10px] font-bold tracking-wider">
-                        {user?.userCode || ""}
-                    </span>
-                 </p>
               </div>
               
               <Link 

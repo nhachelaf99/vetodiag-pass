@@ -1,43 +1,12 @@
 "use client";
 
 import { useState } from "react";
-
-// Mock data for results
-const results = [
-  {
-    id: 1,
-    title: "Annual Wellness Panel",
-    pet: "Rocky",
-    date: "Oct 27, 2023",
-    type: "Blood Work",
-    doctor: "Dr. Emily Carter",
-    status: "Normal",
-    downloadUrl: "#",
-  },
-  {
-    id: 2,
-    title: "X-Ray: Right Hind Leg",
-    pet: "Milo",
-    date: "Nov 5, 2023",
-    type: "Imaging",
-    doctor: "Dr. James Rodriguez",
-    status: "Review Needed",
-    downloadUrl: "#",
-  },
-  {
-    id: 3,
-    title: "Fecal Analysis",
-    pet: "Daisy",
-    date: "Nov 18, 2023",
-    type: "Lab Test",
-    doctor: "Lab Corp",
-    status: "Normal",
-    downloadUrl: "#",
-  },
-];
+import { useResultsQuery } from "@/hooks/useResultsQuery";
+import SkeletonResultItem from "@/components/skeletons/SkeletonResultItem";
 
 export default function ResultsPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  const { data: results = [], isLoading } = useResultsQuery();
 
   const filteredResults = results.filter((result) =>
     result.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -69,7 +38,13 @@ export default function ResultsPage() {
 
       {/* Results List */}
       <div className="space-y-4">
-        {filteredResults.length > 0 ? (
+        {isLoading ? (
+          <>
+            <SkeletonResultItem />
+            <SkeletonResultItem />
+            <SkeletonResultItem />
+          </>
+        ) : filteredResults.length > 0 ? (
           filteredResults.map((result) => (
             <div
               key={result.id}

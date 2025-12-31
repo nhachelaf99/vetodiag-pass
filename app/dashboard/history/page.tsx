@@ -1,153 +1,24 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-
-interface HistoryItem {
-  id: string;
-  type: "Medical Record" | "Appointment" | "Lab Result" | "Invoice" | "Vaccination";
-  title: string;
-  description: string;
-  date: string; // ISO string
-  icon: string;
-  petName?: string;
-  doctorName?: string;
-}
+import { useState } from "react";
+import { useHistoryQuery } from "@/hooks/useHistoryQuery";
+import SkeletonHistoryItem from "@/components/skeletons/SkeletonHistoryItem";
+import { 
+    FileText, 
+    Calendar, 
+    Syringe, 
+    Receipt, 
+    Activity, 
+    Filter, 
+    Clock, 
+    Dog, 
+    User,
+    CheckCircle2
+} from "lucide-react";
 
 export default function HistoryPage() {
   const [filterType, setFilterType] = useState("All");
-  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchHistory() {
-      try {
-        setLoading(true);
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.email) return;
-
-        // 1. Get Client ID
-        const { data: client, error: clientError } = await supabase
-            .from('client')
-            .select('id')
-            .eq('email', session.user.email)
-            .single();
-
-        if (clientError || !client) {
-            console.warn("Client not found for history:", clientError?.message);
-            // Don't crash, just show empty history
-            setLoading(false); 
-            return;
-        }
-
-        // 2. Get My Patients
-        const { data: patients } = await supabase
-            .from('patient')
-            .select('id, name')
-            .eq('owner_id', client.id); // Assuming owner_id links to client
-        
-        const patientIds = patients?.map(p => p.id) || [];
-        const patientMap = new Map(patients?.map(p => [p.id, p.name]));
-
-        // 3. Parallel Fetching
-        const [casesRes, vaxRes, rdvRes, payRes] = await Promise.all([
-            // Clinical Cases
-            patientIds.length > 0 ? supabase
-                .from('clinical_case')
-                .select('*')
-                .in('patient_id', patientIds)
-                .order('visit_date', { ascending: false }) : Promise.resolve({ data: [] }),
-            
-            // Vaccinations
-            patientIds.length > 0 ? supabase
-                .from('vaccination')
-                .select('*')
-                .in('patient_id', patientIds)
-                .order('created_at', { ascending: false }) : Promise.resolve({ data: [] }),
-
-            // Appointments (RDV)
-            patientIds.length > 0 ? supabase
-                .from('rdv')
-                .select('*, clinique(name)')
-                .in('patient_id', patientIds)
-                .order('date', { ascending: false }) : Promise.resolve({ data: [] }),
-
-            // Payments
-            supabase
-                .from('payments')
-                .select('*')
-                .eq('client_id', client.id)
-                .order('created_at', { ascending: false })
-        ]);
-
-        const items: HistoryItem[] = [];
-
-        // Map Clinical Cases
-        casesRes.data?.forEach((item: any) => {
-            items.push({
-                id: `case-${item.id}`,
-                type: "Medical Record",
-                title: item.clinical_case_type || "Consultation",
-                description: item.notes || "No details recorded",
-                date: item.visit_date,
-                icon: "medical_services",
-                petName: patientMap.get(item.patient_id) || "Unknown Pet",
-            });
-        });
-
-        // Map Vaccinations
-        vaxRes.data?.forEach((item: any) => {
-            items.push({
-                id: `vax-${item.id}`,
-                type: "Vaccination",
-                title: `Vaccination: ${item.vaccination_name}`,
-                description: `Next due: ${new Date(item.next_time).toLocaleDateString()}`,
-                date: item.created_at,
-                icon: "vaccines",
-                petName: patientMap.get(item.patient_id) || "Unknown Pet",
-            });
-        });
-
-        // Map Appointments
-        rdvRes.data?.forEach((item: any) => {
-            items.push({
-                id: `rdv-${item.id}`,
-                type: "Appointment",
-                title: item.type || "Appointment",
-                description: `Status: ${item.done ? 'Completed' : 'Upcoming'}`,
-                date: `${item.date}T${item.time}`,
-                icon: "calendar_month",
-                petName: patientMap.get(item.patient_id) || "Unknown Pet",
-                doctorName: item.clinique?.name
-            });
-        });
-
-        // Map Payments
-        payRes.data?.forEach((item: any) => {
-            items.push({
-                id: `pay-${item.id}`,
-                type: "Invoice",
-                title: "Payment Record",
-                description: item.description || `Amount: $${item.amount}`,
-                date: item.created_at,
-                icon: "receipt",
-                doctorName: "Billing System"
-            });
-        });
-
-        // Sort by Date Descending
-        items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setHistoryItems(items);
-
-      } catch (err) {
-        console.error("Error fetching history:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchHistory();
-  }, []);
+  const { data: historyItems = [], isLoading } = useHistoryQuery();
 
   const filteredHistory = filterType === "All"
       ? historyItems
@@ -155,96 +26,137 @@ export default function HistoryPage() {
 
   const filters = ["All", "Medical Record", "Appointment", "Vaccination", "Invoice"];
 
+  const getIcon = (type: string) => {
+      switch (type) {
+          case 'Medical Record': return FileText;
+          case 'Appointment': return Calendar;
+          case 'Vaccination': return Syringe;
+          case 'Invoice': return Receipt;
+          case 'Lab Result': return Activity;
+          default: return FileText;
+      }
+  };
+
+  const getColor = (type: string) => {
+      switch (type) {
+          case 'Medical Record': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+          case 'Appointment': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+          case 'Vaccination': return 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20';
+          case 'Invoice': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+          default: return 'text-gray-400 bg-gray-400/10 border-gray-400/20';
+      }
+  };
+
   return (
-    <div className="font-display space-y-8 max-w-5xl mx-auto p-4 md:p-8 bg-background-dark min-h-screen">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="font-display space-y-8 max-w-7xl mx-auto p-4 md:p-8 min-h-screen">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight">History</h1>
-          <p className="text-gray-400 mt-2">
-            View your pet's medical history and past activities.
+          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight flex items-center gap-3">
+             <Clock className="w-8 h-8 text-primary" />
+             History
+          </h1>
+          <p className="text-gray-400 mt-2 text-lg">
+            View your pet's medical history timeline.
           </p>
         </div>
         
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-            {filters.map((f) => (
-            <button
-                key={f}
-                onClick={() => setFilterType(f)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                filterType === f
-                    ? "bg-primary text-black shadow-lg shadow-primary/25 scale-105"
-                    : "bg-surface-dark text-gray-400 hover:bg-white/10 hover:text-white border border-border-dark"
-                }`}
-            >
-                {f}
-            </button>
-            ))}
+        {/* Filter Scroll Container */}
+        <div className="w-full md:w-auto overflow-x-auto pb-2 md:pb-0 scrollbar-hide">
+             <div className="flex gap-2 p-1 bg-gray-900/50 rounded-xl border border-gray-800 backdrop-blur-sm min-w-max">
+                {filters.map((f) => (
+                    <button
+                        key={f}
+                        onClick={() => setFilterType(f)}
+                        className={`px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center gap-2 ${
+                        filterType === f
+                            ? "bg-gray-800 text-white shadow-sm ring-1 ring-white/10"
+                            : "text-gray-400 hover:text-white hover:bg-white/5"
+                        }`}
+                    >
+                        {f === 'All' && <Filter className="w-3.5 h-3.5" />}
+                        {f}
+                    </button>
+                ))}
+             </div>
         </div>
       </div>
 
-      {/* History List */}
-      <div className="space-y-4">
-        {loading ? (
-             <div className="text-center py-12 text-gray-500">Loading history...</div>
+      {/* History Timeline */}
+      <div className="relative space-y-6 before:absolute before:inset-0 before:ml-5 md:before:ml-[2.25rem] before:-translate-x-px md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-gray-800 before:to-transparent">
+        {isLoading ? (
+          <>
+            <SkeletonHistoryItem />
+            <SkeletonHistoryItem />
+            <SkeletonHistoryItem />
+          </>
         ) : filteredHistory.length > 0 ? (
-          filteredHistory.map((item) => (
-            <div
-              key={item.id}
-              className="bg-surface-dark p-6 rounded-2xl border border-border-dark hover:border-primary/50 transition-all group flex flex-col md:flex-row items-start gap-5 relative overflow-hidden"
-            >
-               {/* Decorative background element */}
-               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110" />
+          filteredHistory.map((item, index) => {
+            const Icon = getIcon(item.type);
+            const colorClass = getColor(item.type);
+            
+            return (
+              <div key={item.id} className="relative flex items-start gap-4 md:gap-8 group">
+                 {/* Timeline Node */}
+                 <div className={`absolute left-0 md:left-4 mt-6 w-10 md:w-10 h-10 md:h-10 rounded-xl border-4 border-[#09090b] shadow-sm z-10 flex items-center justify-center transition-transform group-hover:scale-110 ${colorClass.split(" ")[1]}`}>
+                    <Icon className={`w-5 h-5 ${colorClass.split(" ")[0]}`} />
+                 </div>
 
-              <div className="w-14 h-14 bg-background-dark rounded-xl flex items-center justify-center flex-shrink-0 border border-border-dark group-hover:border-primary/50 transition-colors z-10">
-                <span className="material-symbols-outlined text-primary text-2xl">{item.icon}</span>
+                 <div className="flex-1 ml-14 md:ml-20">
+                     <div className={`p-1 rounded-2xl bg-gradient-to-b from-white/5 to-transparent p-[1px]`}>
+                        <div className="bg-[#09090b] rounded-[15px] p-5 sm:p-6 relative overflow-hidden group-hover:bg-[#101012] transition-colors">
+                            
+                            {/* Header Row */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                                <div className="flex items-center gap-3">
+                                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border ${colorClass}`}>
+                                        {item.type}
+                                    </span>
+                                    <span className="text-xs font-mono text-gray-500">
+                                        {new Date(item.date).toLocaleDateString(undefined, { 
+                                            year: 'numeric', month: 'short', day: 'numeric',
+                                            hour: 'numeric', minute: '2-digit'
+                                        })}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {/* Content */}
+                            <div className="mb-4">
+                                <h3 className="text-lg font-bold text-white mb-1 group-hover:text-primary transition-colors">
+                                    {item.title}
+                                </h3>
+                                <p className="text-gray-400 text-sm leading-relaxed">
+                                    {item.description}
+                                </p>
+                            </div>
+
+                            {/* Footer Tags */}
+                            <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-gray-800/50">
+                                {item.petName && (
+                                    <div className="flex items-center gap-2 text-xs font-medium text-gray-400 bg-gray-800/30 px-2 py-1 rounded-md">
+                                        <Dog className="w-3.5 h-3.5" />
+                                        {item.petName}
+                                    </div>
+                                )}
+                                {item.doctorName && (
+                                    <div className="flex items-center gap-2 text-xs font-medium text-gray-400 bg-gray-800/30 px-2 py-1 rounded-md">
+                                        <User className="w-3.5 h-3.5" />
+                                        {item.doctorName}
+                                    </div>
+                                )}
+                            </div>
+
+                        </div>
+                     </div>
+                 </div>
               </div>
-              
-              <div className="flex-1 w-full z-10">
-                <div className="flex flex-col md:flex-row justify-between items-start gap-2">
-                  <div>
-                    <h3 className="text-lg font-bold text-white group-hover:text-primary transition-colors">
-                      {item.title}
-                    </h3>
-                    <p className="text-sm text-gray-400 mt-1 line-clamp-2">
-                      {item.description}
-                    </p>
-                  </div>
-                  <span className="text-xs font-mono text-gray-500 whitespace-nowrap bg-background-dark px-2 py-1 rounded-lg border border-border-dark">
-                    {new Date(item.date).toLocaleDateString(undefined, {
-                        year: 'numeric', month: 'short', day: 'numeric'
-                    })}
-                  </span>
-                </div>
-                
-                <div className="flex flex-wrap items-center gap-4 mt-4 text-xs font-bold text-gray-500 bg-background-dark/50 p-2 rounded-lg inline-flex">
-                  {item.petName && (
-                    <span className="flex items-center gap-1.5 text-gray-300">
-                        <span className="material-symbols-outlined text-sm">pets</span>
-                        {item.petName}
-                    </span>
-                  )}
-                  {item.doctorName && (
-                    <>
-                        <span className="w-1 h-1 rounded-full bg-gray-600" />
-                        <span className="flex items-center gap-1.5 text-gray-300">
-                            <span className="material-symbols-outlined text-sm">person</span>
-                            {item.doctorName}
-                        </span>
-                    </>
-                  )}
-                   <span className="w-1 h-1 rounded-full bg-gray-600" />
-                   <span className="uppercase text-primary tracking-wider">{item.type}</span>
-                </div>
-              </div>
-            </div>
-          ))
+            );
+          })
         ) : (
-          <div className="text-center py-16 bg-surface-dark rounded-2xl border border-border-dark border-dashed">
-            <span className="material-symbols-outlined text-5xl text-gray-600 mb-4 opacity-50">
-              history_toggle_off
-            </span>
-            <p className="text-gray-400 text-lg">No history found for this category.</p>
+          <div className="ml-14 md:ml-20 py-20 bg-[#09090b] rounded-2xl border border-gray-800 border-dashed text-center">
+            <Clock className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+            <p className="text-gray-400 font-medium">No history found for this category.</p>
           </div>
         )}
       </div>

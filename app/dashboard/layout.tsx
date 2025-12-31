@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
+import UniversalHeader from "@/components/UniversalHeader";
 
 export default function DashboardLayout({
   children,
@@ -19,7 +20,10 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen bg-background-dark">
       <Sidebar />
-      <main className="flex-1 p-8 overflow-y-auto">{children}</main>
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-72 transition-all duration-300">
+        <UniversalHeader />
+        <main className="flex-1 px-8 pb-8 overflow-y-auto custom-scrollbar">{children}</main>
+      </div>
     </div>
   );
 }

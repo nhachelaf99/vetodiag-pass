@@ -71,7 +71,8 @@ export default function EditProfileModal({
         .eq("id", userId);
 
       if (updateError) {
-        throw updateError;
+        console.error("Error updating users table:", updateError);
+        throw new Error(updateError.message || "Failed to update profile");
       }
 
       // Update email in auth if it changed
@@ -81,16 +82,21 @@ export default function EditProfileModal({
         });
 
         if (authError) {
-          throw authError;
+          console.error("Error updating auth email:", authError);
+          throw new Error(authError.message || "Failed to update email in authentication");
         }
+        
+        setSuccess("Profile updated! Please check your new email to verify the change.");
+      } else {
+        setSuccess("Profile updated successfully!");
       }
-
-      setSuccess("Profile updated successfully!");
       
       // Wait a moment to show success message
       setTimeout(() => {
         onSuccess();
         onClose();
+        // Force a page reload to refresh all user data
+        window.location.reload();
       }, 1500);
     } catch (err: any) {
       console.error("Error updating profile:", err);

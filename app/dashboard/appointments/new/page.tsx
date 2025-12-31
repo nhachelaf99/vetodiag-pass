@@ -2,342 +2,275 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { usePets, Pet } from "@/contexts/PetsContext";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import { ArrowLeft, Calendar, Clock, Dog, FileText, Loader2, AlertCircle } from "lucide-react";
+
+interface Pet {
+    id: string;
+    name: string;
+    clinic_id: string;
+}
 
 export default function NewAppointmentPage() {
   const router = useRouter();
-  const { pets: contextPets, loading: petsLoading } = usePets();
   const { user } = useAuth();
-  const [localPets, setLocalPets] = useState<Pet[]>([]);
-  const [clinics, setClinics] = useState<any[]>([]);
-  const [appointments, setAppointments] = useState<any[]>([]); // Existing rdvs for availability
-  const [loadingClinics, setLoadingClinics] = useState(true);
-  
-  // Use local pets if context is empty but we found some, otherwise context pets
-  const pets = localPets.length > 0 ? localPets : contextPets;
-
-  const [formData, setFormData] = useState({
-    patientId: "",
-    clinicId: "", // User must select a clinic
-    date: new Date().toISOString().split('T')[0], // Default to today
-    time: "",
-    type: "Consultation",
-    notes: "",
-  });
+  const [pets, setPets] = useState<Pet[]>([]);
+  const [isLoadingPets, setIsLoadingPets] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  // Fetch Clinics
+  const [formData, setFormData] = useState({
+      petId: "",
+      date: "",
+      time: "",
+      type: "Consultation",
+      reason: ""
+  });
+
   useEffect(() => {
-    const fetchClinics = async () => {
+    async function fetchPets() {
+        if (!user?.email) return;
         try {
+            // 1. Resolve real Client ID from 'client' table using email
+            const { data: clientData, error: clientError } = await supabase
+                .from('client')
+                .select('id')
+                .eq('email', user.email)
+                .single();
+
+            if (clientError || !clientData) {
+                console.warn("Could not find client record by email, trying Auth ID directly as fallback.");
+            }
+
+            const targetOwnerId = clientData?.id || user.clientId;
+
+            // 2. Fetch pets using the resolved owner ID
             const { data, error } = await supabase
-                .from('clinique')
-                .select('id, name, address');
+                .from('patient')
+                .select('id, name, clinic_id')
+                .eq('owner_id', targetOwnerId);
             
             if (error) throw error;
-            if (data) setClinics(data);
+            setPets(data || []);
+            if (data && data.length > 0) {
+                setFormData(prev => ({ ...prev, petId: data[0].id }));
+            }
         } catch (err) {
-            console.error("Error fetching clinics", err);
+            console.error("Error fetching pets:", err);
+            setError("Failed to load pets. Please try refreshing.");
         } finally {
-            setLoadingClinics(false);
+            setIsLoadingPets(false);
         }
-    };
-    fetchClinics();
-  }, []);
-
-  // Fetch Pets
-  useEffect(() => {
-      const loadPetsFallback = async () => {
-          if (contextPets.length === 0 && !petsLoading && user) {
-               let cid = user.clinicId; // Still try to get default clinic ID for pets
-               if (!cid && user.clientId) {
-                    const { data } = await supabase.from('users').select('clinic_id').eq('id', user.clientId).single();
-                    if (data) cid = data.clinic_id;
-               }
-
-               if (cid) {
-                   const { data: petData } = await supabase
-                    .from('patient')
-                    .select('*')
-                    .eq('clinic_id', cid)
-                    .order('created_at', { ascending: false });
-                   
-                   if (petData && petData.length > 0) {
-                        const mapped: Pet[] = petData.map((p: any) => ({
-                            id: p.id,
-                            name: p.name,
-                            species: p.species_category,
-                            breed: p.breed || "",
-                            age: "Unknown", 
-                            photoUrl: p.photo_url,
-                            createdAt: p.created_at,
-                            sex: p.sex,
-                        }));
-                        setLocalPets(mapped);
-                   }
-               }
-          }
-      };
-      loadPetsFallback();
-  }, [contextPets, petsLoading, user]);
-
-  // Fetch Appointments (Availability) when Clinic + Date changes
-  useEffect(() => {
-      if (!formData.clinicId || !formData.date) return;
-
-      const fetchAvailability = async () => {
-          const { data } = await supabase
-            .from('rdv')
-            .select('time, date')
-            .eq('clinic_id', formData.clinicId)
-            .eq('date', formData.date); // Filter by selected date
-          
-          if (data) setAppointments(data);
-          else setAppointments([]);
-      };
-      fetchAvailability();
-  }, [formData.clinicId, formData.date]);
-
+    }
+    fetchPets();
+  }, [user?.email, user?.clientId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
-
-    if (!formData.patientId || !formData.date || !formData.time || !formData.clinicId) {
-      setError("Please fill in all required fields.");
-      return;
-    }
-
     setIsSubmitting(true);
 
+    if (!formData.petId || !formData.date || !formData.time) {
+        setError("Please fill in all required fields.");
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
-      const { error: insertError } = await supabase
-        .from("rdv")
-        .insert([
-          {
-            clinic_id: formData.clinicId,
-            patient_id: formData.patientId,
+        const selectedPet = pets.find(p => p.id === formData.petId);
+        if (!selectedPet) throw new Error("Selected pet invalid");
+
+        if (!selectedPet.clinic_id) {
+            throw new Error(`This pet (${selectedPet.name}) is not linked to a clinic. Cannot book appointment.`);
+        }
+
+        const payload = {
+            patient_id: formData.petId,
+            id_clinique: selectedPet.clinic_id, // Trying 'id_clinique' based on previous file usage
             date: formData.date,
             time: formData.time,
             type: formData.type,
-            owner_service: formData.notes, 
             done: false,
-          },
-        ]);
+        };
+        console.log("Submitting payload:", payload);
 
-      if (insertError) throw insertError;
+        const { error: insertError, data } = await supabase
+            .from('rdv')
+            .insert(payload)
+            .select();
 
-      setSuccess("Appointment scheduled successfully!");
-      // Optionally redirect
-      setTimeout(() => router.push("/dashboard/appointments"), 1500);
+        if (insertError) {
+             // Throw object with details to be caught below
+             throw { 
+                message: insertError.message, 
+                details: insertError.details, 
+                hint: insertError.hint,
+                code: insertError.code 
+            };
+        }
+
+        console.log("Appointment created:", data);
+        router.push("/dashboard/appointments");
     } catch (err: any) {
-      console.error("Error scheduling appointment:", err);
-      setError(err.message || "Failed to schedule appointment.");
+        console.error("Booking failed detailed:", err);
+        const errMsg = err.message || JSON.stringify(err);
+        const errDetails = err.details ? ` (${err.details})` : '';
+        const errHint = err.hint ? ` Hint: ${err.hint}` : '';
+        setError(`Failed: ${errMsg}${errDetails}${errHint}`);
     } finally {
-      setIsSubmitting(false);
+        setIsSubmitting(false);
     }
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+      const { name, value } = e.target;
+      setFormData(prev => ({ ...prev, [name]: value }));
   };
-
-  // Generate Time Slots
-  const timeSlots = [];
-  for (let i = 9; i <= 17; i++) {
-      timeSlots.push(`${i.toString().padStart(2, '0')}:00`);
-      timeSlots.push(`${i.toString().padStart(2, '0')}:30`);
-  }
-
-  // Determine availability
-  const isTimeTaken = (time: string) => {
-      // Simple check: does any appointment match this time?
-      // Note: DB time might be "10:00:00", we compare prefix
-      return appointments.some(app => app.time.startsWith(time));
-  };
-
-  if (petsLoading || loadingClinics) {
-      return <div className="p-8 text-white">Loading...</div>;
-  }
 
   return (
-    <div className="font-inter max-w-4xl mx-auto py-12 px-4">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-white">Schedule Appointment</h1>
-        <p className="text-gray-400 mt-2">
-          Find a clinic and book a visit.
-        </p>
+    <div className="font-display max-w-2xl mx-auto p-4 md:p-8 min-h-screen">
+       <div className="flex items-center gap-4 mb-8">
+          <Link 
+            href="/dashboard/appointments"
+            className="p-2 rounded-lg bg-surface-dark border border-border-dark text-gray-400 hover:text-white transition-colors"
+          >
+              <ArrowLeft className="w-5 h-5" />
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold text-white">Book Appointment</h1>
+            <p className="text-gray-400">Schedule a visit for your pet.</p>
+          </div>
       </div>
 
-      <div className="bg-surface-dark rounded-lg shadow-lg border border-border-dark p-8">
-        <form onSubmit={handleSubmit} className="space-y-8">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500 text-red-500 p-4 rounded-lg text-sm">
-              {error}
+      <div className="bg-[#09090b] rounded-2xl border border-gray-800 p-6 md:p-8 shadow-xl">
+        {error && (
+            <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 flex items-center gap-2">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                <p>{error}</p>
             </div>
-          )}
-          {success && (
-            <div className="bg-green-500/10 border border-green-500 text-green-500 p-4 rounded-lg text-sm">
-              {success}
-            </div>
-          )}
+        )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Left Column: Selections */}
-              <div className="space-y-6">
-                 <div>
-                    <label className="block text-sm font-medium text-white mb-2">
+        <form onSubmit={handleSubmit} className="space-y-6">
+            
+            {/* Pet Selection */}
+            <div>
+                <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
                     Select Pet
-                    </label>
-                    <select
-                    name="patientId"
-                    value={formData.patientId}
-                    onChange={handleChange}
-                    className="block w-full bg-background-dark border border-border-dark rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3"
-                    >
-                    <option value="">-- Choose a pet --</option>
-                    {pets.map((pet) => (
-                        <option key={pet.id} value={pet.id}>
-                        {pet.name} ({pet.species})
-                        </option>
-                    ))}
-                    </select>
-                </div>
+                </label>
+                {isLoadingPets ? (
+                    <div className="h-12 w-full bg-gray-800 rounded-xl animate-pulse" />
+                ) : pets.length === 0 ? (
+                    <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-400">
+                        No pets found. Please <Link href="/dashboard/my-pets/add" className="underline hover:text-white">add a pet</Link> first.
+                    </div>
+                ) : (
+                    <div className="relative">
+                        <Dog className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                        <select
+                            name="petId"
+                            value={formData.petId}
+                            onChange={handleChange}
+                            className="w-full bg-[#18181b] border border-gray-700 rounded-xl pl-12 pr-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none transition-all"
+                        >
+                            {pets.map(pet => (
+                                <option key={pet.id} value={pet.id}>{pet.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+            </div>
 
+            {/* Date & Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                    Select Clinic
+                    <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
+                        Date
                     </label>
-                    <select
-                    name="clinicId"
-                    value={formData.clinicId}
-                    onChange={handleChange}
-                    className="block w-full bg-background-dark border border-border-dark rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3"
-                    >
-                    <option value="">-- Choose a Clinic --</option>
-                    {clinics.map((c) => (
-                        <option key={c.id} value={c.id}>
-                        {c.name} - {c.address}
-                        </option>
-                    ))}
-                    </select>
-                </div>
-
-                 <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                    Service Type
-                    </label>
-                    <select
-                    name="type"
-                    value={formData.type}
-                    onChange={handleChange}
-                    className="block w-full bg-background-dark border border-border-dark rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3"
-                    >
-                    <option value="Consultation">Consultation</option>
-                    <option value="Vaccination">Vaccination</option>
-                    <option value="Surgery">Surgery</option>
-                    <option value="Grooming">Grooming</option>
-                    <option value="Check-up">Check-up</option>
-                    <option value="Other">Other</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="block text-sm font-medium text-white mb-2">
-                    Notes
-                    </label>
-                    <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleChange}
-                    rows={3}
-                    placeholder="Briefly describe the reason..."
-                    className="block w-full bg-background-dark border border-border-dark rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3"
-                    />
-                </div>
-              </div>
-
-              {/* Right Column: Date & Availability */}
-              <div className="space-y-6">
-                   <div>
-                        <label className="block text-sm font-medium text-white mb-2">
-                            Select Date
-                        </label>
+                    <div className="relative">
+                        <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                         <input
                             type="date"
                             name="date"
                             value={formData.date}
                             onChange={handleChange}
-                            className="block w-full bg-background-dark border border-border-dark rounded-lg shadow-sm placeholder-text-dark-secondary text-white focus:ring-primary focus:border-primary sm:text-sm px-4 py-3"
+                            min={new Date().toISOString().split('T')[0]}
+                            className="w-full bg-[#18181b] border border-gray-700 rounded-xl pl-12 pr-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all [color-scheme:dark]"
                         />
-                   </div>
+                    </div>
+                </div>
+                <div>
+                     <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
+                        Time
+                    </label>
+                    <div className="relative">
+                        <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                        <input
+                            type="time"
+                            name="time"
+                            value={formData.time}
+                            onChange={handleChange}
+                            className="w-full bg-[#18181b] border border-gray-700 rounded-xl pl-12 pr-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all [color-scheme:dark]"
+                        />
+                    </div>
+                </div>
+            </div>
 
-                   <div>
-                       <label className="block text-sm font-medium text-white mb-2">
-                            Available Time Slots
-                       </label>
-                       {!formData.clinicId ? (
-                           <div className="text-gray-500 italic text-sm p-4 border border-dashed border-gray-700 rounded-lg">
-                               Please select a clinic first.
-                           </div>
-                       ) : (
-                           <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-                               {timeSlots.map(time => {
-                                   const taken = isTimeTaken(time);
-                                   const selected = formData.time === time;
-                                   return (
-                                       <button
-                                            key={time}
-                                            type="button"
-                                            disabled={taken}
-                                            onClick={() => setFormData({...formData, time})}
-                                            className={`
-                                                px-2 py-2 text-sm rounded-md border transition-all
-                                                ${taken 
-                                                    ? 'bg-red-900/20 border-red-900/50 text-red-500 cursor-not-allowed opacity-50' 
-                                                    : selected
-                                                        ? 'bg-primary text-white border-primary'
-                                                        : 'bg-background-dark border-gray-700 text-gray-300 hover:border-primary/50'
-                                                }
-                                            `}
-                                       >
-                                           {time}
-                                           {taken && <span className="block text-[10px] text-red-400">Booked</span>}
-                                       </button>
-                                   )
-                               })}
-                           </div>
-                       )}
-                   </div>
-              </div>
-          </div>
+            {/* Service Type */}
+            <div>
+                 <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
+                    Service Type
+                </label>
+                <div className="relative">
+                    <FileText className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+                    <select
+                        name="type"
+                        value={formData.type}
+                        onChange={handleChange}
+                        className="w-full bg-[#18181b] border border-gray-700 rounded-xl pl-12 pr-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none appearance-none transition-all"
+                    >
+                        <option value="Consultation">General Consultation</option>
+                        <option value="Checkup">Annual Checkup</option>
+                        <option value="Vaccination">Vaccination</option>
+                        <option value="Surgery">Surgery</option>
+                        <option value="Grooming">Grooming</option>
+                    </select>
+                </div>
+            </div>
 
-          <div className="flex justify-end pt-4 gap-3 border-t border-gray-800">
-             <button
-              type="button"
-              onClick={() => router.back()}
-              className="px-5 py-2.5 text-sm font-semibold text-white bg-transparent rounded-lg hover:bg-white/10 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-6 py-2.5 bg-primary text-white font-semibold rounded-lg shadow-lg hover:bg-green-500 transition-colors disabled:opacity-50"
-            >
-              {isSubmitting ? "Scheduling..." : "Confirm Appointment"}
-            </button>
-          </div>
+            {/* Reason */}
+            <div>
+                 <label className="block text-sm font-bold text-gray-400 mb-2 uppercase tracking-wide">
+                    Additional Notes (Optional)
+                </label>
+                <textarea
+                    name="reason"
+                    rows={3}
+                    value={formData.reason}
+                    onChange={handleChange}
+                    placeholder="Describe any symptoms or specific requests..."
+                    className="w-full bg-[#18181b] border border-gray-700 rounded-xl px-4 py-3 text-white focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all placeholder:text-gray-600 resize-none"
+                />
+            </div>
+
+            {/* Submit */}
+            <div className="pt-4">
+                <button 
+                    type="submit" 
+                    disabled={isSubmitting || isLoadingPets || pets.length === 0}
+                    className="w-full bg-primary text-black font-bold text-lg py-3 rounded-xl hover:bg-green-500 transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                    {isSubmitting ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            Booking...
+                        </>
+                    ) : (
+                        "Confirm Booking"
+                    )}
+                </button>
+            </div>
         </form>
       </div>
     </div>

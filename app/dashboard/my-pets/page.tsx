@@ -4,10 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePets } from "@/contexts/PetsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import SkeletonTable from "@/components/skeletons/SkeletonTable";
 
 const defaultAvatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuDyt4c5BbRgVrFVjacO5V7NwCgkZNE4MHId8PLtKDOMEXAPP_TaBmiKcYl7kiH_qBJ-6J0u9NiRbmYgL3Co0CFkH9_kL-XFG_HiJzRD1YPtoQHA5iTSaf1mCOtbm2768HG3Wz5M7qcIxeHt2AtDTcdKjqENz3Ad2FbimMoTi4Vb4jTbDgnxS2wlGy0uqePibloKxmb_fu7UONK7uy_w1wlREXAfQJWvjJqOHCmjDbcgPKfzYBnfiL4UvW7eqflEHFoF_dzOOh3urSY";
-
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
 
 export default function MyPetsPage() {
   const { pets, loading } = usePets();
@@ -22,7 +21,6 @@ export default function MyPetsPage() {
 
   return (
     <div className="flex-grow font-inter">
-      <DashboardHeader />
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h1 className="text-4xl font-bold tracking-tight text-white font-poppins">
@@ -121,12 +119,9 @@ export default function MyPetsPage() {
               <tbody className="divide-y divide-border-dark">
                 {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
-                        <div className="flex flex-col items-center justify-center">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-2"></div>
-                            Loading your pets...
-                        </div>
-                      </td>
+                        <td colSpan={7} className="p-0">
+                            <SkeletonTable rows={5} columns={7} />
+                        </td>
                     </tr>
                 ) : pets.length === 0 ? (
                   <tr>

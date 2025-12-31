@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/contexts/AuthContext";
-import NotificationIcon from "@/components/icons/NotificationIcon";
 
 const defaultAvatar = "https://lh3.googleusercontent.com/aida-public/AB6AXuAfz1EGnpOhsGzJbweveovW0krpbjcOiOz0k8b8kvA6yiFGYQlUgr0G-HYGCIuJw8D4rkILKUE8cJzgZjHhiM39cItF02BmOKG53cI7fZwbzttUKqixfqRF9_kLjjgYxqwLfcNN8VoYMu_RW3_eRXvEb5GFnPf2vEtjc0gAWt-kNlgiuCjxEJ_BHbFfJ-BpR4573OzUz8w09PgN7Dtbjn-z27x9hiHPP5Uu-VyGbY-T_90lkwWRHkCcSgqnUD3LZ6mwXS1lu2B__-c";
 
@@ -139,12 +138,6 @@ export default function Header() {
           <div className="flex items-center space-x-4">
             {isAuthenticated ? (
               <>
-                <button
-                  className="relative p-2 rounded-full text-text-dark-secondary hover:bg-surface-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary focus:ring-offset-background-dark"
-                  aria-label="Notifications"
-                >
-                  <NotificationIcon />
-                </button>
                 <div className="flex items-center space-x-3">
                   <Image
                     src={user?.avatar || defaultAvatar}
@@ -157,9 +150,6 @@ export default function Header() {
                   <div>
                     <p className="text-sm font-medium text-text-dark-primary">
                       {user?.name || ""}
-                    </p>
-                    <p className="text-xs text-text-dark-secondary">
-                      User Code: {user?.userCode || ""}
                     </p>
                   </div>
                 </div>

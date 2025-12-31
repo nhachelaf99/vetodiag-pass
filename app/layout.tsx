@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import { Sora, Poppins, Inter } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
-import { PetsProvider } from "@/contexts/PetsContext";
 import ConditionalHeader from "@/components/ConditionalHeader";
 import ConditionalFooter from "@/components/ConditionalFooter";
+import Providers from "@/components/Providers";
 
 const sora = Sora({ 
   subsets: ["latin"],
@@ -36,13 +35,11 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${sora.className} ${poppins.variable} ${inter.variable} bg-background-dark text-gray-300 antialiased`}>
-        <AuthProvider>
-          <PetsProvider>
-            <ConditionalHeader />
-            <main>{children}</main>
-            <ConditionalFooter />
-          </PetsProvider>
-        </AuthProvider>
+        <Providers>
+          <ConditionalHeader />
+          <main>{children}</main>
+          <ConditionalFooter />
+        </Providers>
       </body>
     </html>
   );
